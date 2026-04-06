@@ -1,19 +1,26 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, Loader2 } from 'lucide-react';
-import { useStadium } from '@/contexts/StadiumContext';
+import { Send, Bot, User, Loader2, MapPin, Calendar } from 'lucide-react';
+import { useStadiums, useStadiumDetail } from '@/hooks/useStadiums';
 import { ChatMessage } from '@/types/stadium';
-import { supabase } from '@/integrations/supabase/client';
 import { cn } from '@/lib/utils';
+import ReactMarkdown from 'react-markdown';
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/stadium-chat`;
 
 export const AIAssistantPage: React.FC = () => {
-  const { getContextForAI } = useStadium();
+  const { stadiums } = useStadiums();
+  const [selectedStadiumId, setSelectedStadiumId] = useState<string | null>(null);
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  const { events } = useStadiumDetail(selectedStadiumId || undefined);
+
+  const selectedStadium = stadiums.find(s => s.id === selectedStadiumId);
+  const selectedEvent = events.find(e => e.id === selectedEventId);
+
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: '1',
       role: 'assistant',
-      content: "👋 Welcome to ArenaFlow AI! I'm your smart stadium assistant. Ask me about the best entry gates, shortest food queues, nearest washrooms, or anything else about your venue experience. I analyze real-time crowd data to give you the best recommendations.",
+      content: "👋 Welcome to **ArenaFlow AI**! I'm your smart stadium assistant.\n\nAsk me about the best entry gates, shortest food queues, nearest washrooms, or anything about your venue experience.\n\n**Select a stadium and event above** to get personalized, data-driven recommendations — or just ask and I'll help you choose!",
       timestamp: new Date(),
     },
   ]);
@@ -26,11 +33,16 @@ export const AIAssistantPage: React.FC = () => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages]);
 
+  // Reset event when stadium changes
+  useEffect(() => {
+    setSelectedEventId(null);
+  }, [selectedStadiumId]);
+
   const quickQuestions = [
     "Which gate has the shortest wait?",
     "Where's the nearest washroom?",
     "Best food stall right now?",
-    "How do I get to my seat?",
+    "What's the crowd status?",
   ];
 
   const sendMessage = async (text: string) => {
@@ -47,8 +59,6 @@ export const AIAssistantPage: React.FC = () => {
     setInput('');
     setIsLoading(true);
 
-    const venueContext = getContextForAI();
-
     try {
       const chatMessages = messages
         .filter(m => m.id !== '1')
@@ -61,11 +71,20 @@ export const AIAssistantPage: React.FC = () => {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY}`,
         },
-        body: JSON.stringify({ messages: chatMessages, venueContext }),
+        body: JSON.stringify({
+          messages: chatMessages,
+          selectedStadiumId,
+          selectedEventId,
+        }),
       });
 
       if (!resp.ok || !resp.body) {
-        throw new Error(resp.status === 429 ? 'Rate limited. Please wait a moment.' : 'Failed to get response');
+        const errData = await resp.json().catch(() => ({}));
+        throw new Error(
+          resp.status === 429 ? 'Rate limited. Please wait a moment.' :
+          resp.status === 402 ? 'AI credits exhausted. Please add funds in Settings → Workspace → Usage.' :
+          errData.error || 'Failed to get response'
+        );
       }
 
       const reader = resp.body.getReader();
@@ -119,12 +138,70 @@ export const AIAssistantPage: React.FC = () => {
 
   return (
     <div className="flex flex-col h-[calc(100vh-3.5rem)] max-w-3xl mx-auto">
-      <div className="mb-4">
+      <div className="mb-3">
         <h2 className="text-2xl font-display font-bold">
           <span className="gradient-text">AI Assistant</span>
         </h2>
         <p className="text-sm text-muted-foreground">Get real-time venue guidance powered by AI</p>
       </div>
+
+      {/* Stadium & Event Selectors */}
+      <div className="flex flex-wrap gap-2 mb-3">
+        <div className="flex items-center gap-2 flex-1 min-w-[200px]">
+          <MapPin className="w-4 h-4 text-primary shrink-0" />
+          <select
+            value={selectedStadiumId || ''}
+            onChange={e => setSelectedStadiumId(e.target.value || null)}
+            className="flex-1 h-9 rounded-lg bg-muted/50 border border-border/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+            aria-label="Select stadium"
+          >
+            <option value="">Select a stadium...</option>
+            {stadiums.map(s => (
+              <option key={s.id} value={s.id}>{s.name} — {s.city}</option>
+            ))}
+          </select>
+        </div>
+
+        <div className="flex items-center gap-2 flex-1 min-w-[200px]">
+          <Calendar className="w-4 h-4 text-primary shrink-0" />
+          <select
+            value={selectedEventId || ''}
+            onChange={e => setSelectedEventId(e.target.value || null)}
+            className="flex-1 h-9 rounded-lg bg-muted/50 border border-border/50 px-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50"
+            disabled={!selectedStadiumId}
+            aria-label="Select event"
+          >
+            <option value="">Select an event...</option>
+            {events.map(e => (
+              <option key={e.id} value={e.id}>
+                {e.event_name} — {new Date(e.event_date).toLocaleDateString()} ({e.status})
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      {/* Context Chips */}
+      {(selectedStadium || selectedEvent) && (
+        <div className="flex flex-wrap gap-1.5 mb-3">
+          {selectedStadium && (
+            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-medium bg-primary/10 text-primary border border-primary/20">
+              <MapPin className="w-3 h-3" /> {selectedStadium.name}
+            </span>
+          )}
+          {selectedEvent && (
+            <span className={cn(
+              "inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-medium border",
+              selectedEvent.status === 'live' ? 'bg-secondary/10 text-secondary border-secondary/20' :
+              selectedEvent.status === 'completed' ? 'bg-muted text-muted-foreground border-border/30' :
+              'bg-primary/10 text-primary border-primary/20'
+            )}>
+              <Calendar className="w-3 h-3" />
+              {selectedEvent.event_name} ({selectedEvent.status})
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Messages */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto space-y-4 pb-4" role="log" aria-label="Chat messages">
@@ -149,7 +226,9 @@ export const AIAssistantPage: React.FC = () => {
                   : 'glass'
               )}
             >
-              <p className="whitespace-pre-wrap">{msg.content}</p>
+              <div className="prose prose-sm prose-invert max-w-none [&_p]:mb-2 [&_ul]:mb-2 [&_ol]:mb-2 [&_li]:mb-0.5 [&_strong]:text-foreground [&_h1]:text-lg [&_h2]:text-base [&_h3]:text-sm">
+                <ReactMarkdown>{msg.content}</ReactMarkdown>
+              </div>
               <time className="text-[10px] text-muted-foreground mt-1 block">
                 {msg.timestamp.toLocaleTimeString()}
               </time>
@@ -197,7 +276,7 @@ export const AIAssistantPage: React.FC = () => {
           ref={inputRef}
           value={input}
           onChange={e => setInput(e.target.value)}
-          placeholder="Ask about gates, food, washrooms, navigation..."
+          placeholder={selectedStadium ? `Ask about ${selectedStadium.name}...` : "Ask about gates, food, washrooms, navigation..."}
           className="flex-1 h-11 rounded-xl bg-muted/50 border border-border/50 px-4 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
           disabled={isLoading}
           aria-label="Message input"
