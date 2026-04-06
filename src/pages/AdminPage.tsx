@@ -171,17 +171,19 @@ export const AdminPage: React.FC = () => {
             <LogOut className="w-4 h-4" />
             Sign Out
           </button>
-          onClick={handleEmergencyToggle}
-          className={cn(
-            'px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all',
-            state.isEmergencyMode
-              ? 'bg-destructive/20 border border-destructive/40 text-destructive hover:bg-destructive/30'
-              : 'glass border-destructive/20 text-muted-foreground hover:text-destructive hover:border-destructive/40'
-          )}
-        >
-          <AlertTriangle className="w-4 h-4" />
-          {state.isEmergencyMode ? 'Deactivate Emergency' : 'Activate Emergency'}
-        </button>
+          <button
+            onClick={handleEmergencyToggle}
+            className={cn(
+              'px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all',
+              state.isEmergencyMode
+                ? 'bg-destructive/20 border border-destructive/40 text-destructive hover:bg-destructive/30'
+                : 'glass border-destructive/20 text-muted-foreground hover:text-destructive hover:border-destructive/40'
+            )}
+          >
+            <AlertTriangle className="w-4 h-4" />
+            {state.isEmergencyMode ? 'Deactivate Emergency' : 'Activate Emergency'}
+          </button>
+        </div>
       </div>
 
       {/* Entity Controls */}
