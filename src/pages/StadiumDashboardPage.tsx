@@ -8,7 +8,7 @@ import { SurgeWarningBanner } from '@/components/SurgeWarningBanner';
 import { GateRecommendation } from '@/components/GateRecommendation';
 import { AttendanceTrendChart } from '@/components/AttendanceTrendChart';
 import { CrowdBadge } from '@/components/CrowdBadge';
-import { Users, Clock, Activity, TrendingUp, ArrowLeft, Calendar, AlertTriangle, DoorOpen, Loader2 } from 'lucide-react';
+import { Users, Clock, Activity, TrendingUp, ArrowLeft, Calendar, AlertTriangle, DoorOpen, Loader2, Map } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export const StadiumDashboardPage: React.FC = () => {
@@ -74,6 +74,13 @@ export const StadiumDashboardPage: React.FC = () => {
           </h2>
           <p className="text-sm text-muted-foreground">{stadium.city}, {stadium.state} • Capacity: {(stadium.capacity / 1000).toFixed(0)}K</p>
         </div>
+        <button
+          onClick={() => navigate(`/venue-map/${stadium.id}`)}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg glass text-xs font-medium text-primary hover:bg-primary/10 transition-colors"
+        >
+          <Map className="w-3.5 h-3.5" />
+          Venue Map
+        </button>
         <CrowdBadge density={stadium.crowd_status as any} />
       </div>
 

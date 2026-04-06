@@ -26,6 +26,7 @@ const App = () => (
               <Route path="/stadium/:id" element={<StadiumDashboardPage />} />
               <Route path="/assistant" element={<AIAssistantPage />} />
               <Route path="/venue-map" element={<StadiumMapPage />} />
+              <Route path="/venue-map/:id" element={<StadiumMapPage />} />
               <Route path="/event/:eventId" element={<EventDetailPage />} />
               <Route path="/admin" element={<AdminPage />} />
               <Route path="*" element={<NotFound />} />
