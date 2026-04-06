@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useStadium } from '@/contexts/StadiumContext';
 import { CrowdBadge } from '@/components/CrowdBadge';
 import { CrowdDensity, VenueEntity } from '@/types/stadium';
-import { Shield, AlertTriangle, Save, Clock, Activity } from 'lucide-react';
+import { Shield, AlertTriangle, Save, Clock, Activity, LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
@@ -150,25 +150,40 @@ export const AdminPage: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-2xl font-display font-bold">
             <span className="gradient-text">Admin Dashboard</span>
           </h2>
           <p className="text-sm text-muted-foreground">Manage venue entities and system state</p>
         </div>
-        <button
-          onClick={handleEmergencyToggle}
-          className={cn(
-            'px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all',
-            state.isEmergencyMode
-              ? 'bg-destructive/20 border border-destructive/40 text-destructive hover:bg-destructive/30'
-              : 'glass border-destructive/20 text-muted-foreground hover:text-destructive hover:border-destructive/40'
-          )}
-        >
-          <AlertTriangle className="w-4 h-4" />
-          {state.isEmergencyMode ? 'Deactivate Emergency' : 'Activate Emergency'}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={async () => {
+              await supabase.auth.signOut();
+              setIsAuthenticated(false);
+              setEmail('');
+              setPassword('');
+              toast.info('Signed out');
+            }}
+            className="px-3 py-2 rounded-lg glass text-sm font-medium flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <LogOut className="w-4 h-4" />
+            Sign Out
+          </button>
+          <button
+            onClick={handleEmergencyToggle}
+            className={cn(
+              'px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all',
+              state.isEmergencyMode
+                ? 'bg-destructive/20 border border-destructive/40 text-destructive hover:bg-destructive/30'
+                : 'glass border-destructive/20 text-muted-foreground hover:text-destructive hover:border-destructive/40'
+            )}
+          >
+            <AlertTriangle className="w-4 h-4" />
+            {state.isEmergencyMode ? 'Deactivate Emergency' : 'Activate Emergency'}
+          </button>
+        </div>
       </div>
 
       {/* Entity Controls */}
