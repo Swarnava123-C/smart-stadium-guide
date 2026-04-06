@@ -133,7 +133,14 @@ export const AdminPage: React.FC = () => {
               disabled={loginLoading}
               className="w-full h-10 rounded-lg gradient-primary text-primary-foreground font-medium text-sm disabled:opacity-50 transition-opacity"
             >
-              {loginLoading ? 'Signing in...' : 'Sign In'}
+              {loginLoading ? (isSignup ? 'Creating account...' : 'Signing in...') : (isSignup ? 'Create Account' : 'Sign In')}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setIsSignup(!isSignup); setLoginError(''); }}
+              className="w-full text-sm text-primary hover:underline"
+            >
+              {isSignup ? 'Already have an account? Sign In' : 'Need an account? Sign Up'}
             </button>
           </form>
         </div>
