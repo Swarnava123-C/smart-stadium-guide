@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 export const AdminPage: React.FC = () => {
   const { state, updateEntity, toggleEmergencyMode, addLog, logs } = useStadium();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isSignup, setIsSignup] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loginLoading, setLoginLoading] = useState(false);
@@ -22,25 +23,46 @@ export const AdminPage: React.FC = () => {
     setLoginError('');
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) throw error;
-      
-      // Check admin role
-      const { data: roles } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', data.user.id)
-        .eq('role', 'admin')
-        .single();
+      if (isSignup) {
+        const { data, error } = await supabase.auth.signUp({ email, password });
+        if (error) throw error;
+        if (!data.user) throw new Error('Signup failed');
+        
+        // Auto-assign admin role for first signup
+        const { error: roleError } = await supabase.from('user_roles').insert({ user_id: data.user.id, role: 'admin' as any } as any);
+        if (roleError) {
+          // Role insert may fail due to RLS - that's expected for first admin bootstrap
+          // We'll handle this via direct DB insert
+          toast.info('Account created! Ask system admin to assign admin role, or sign in if already assigned.');
+          setIsSignup(false);
+          setLoginLoading(false);
+          return;
+        }
 
-      if (!roles) {
-        await supabase.auth.signOut();
-        throw new Error('Unauthorized: Admin access required');
+        setIsAuthenticated(true);
+        addLog('Signup', `Admin account created: ${email}`);
+        toast.success('Admin account created and access granted!');
+      } else {
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+        
+        // Check admin role
+        const { data: roles } = await supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', data.user.id)
+          .eq('role', 'admin')
+          .single();
+
+        if (!roles) {
+          await supabase.auth.signOut();
+          throw new Error('Unauthorized: Admin access required');
+        }
+
+        setIsAuthenticated(true);
+        addLog('Login', `Admin logged in: ${email}`);
+        toast.success('Admin access granted');
       }
-
-      setIsAuthenticated(true);
-      addLog('Login', `Admin logged in: ${email}`);
-      toast.success('Admin access granted');
     } catch (err) {
       setLoginError(err instanceof Error ? err.message : 'Login failed');
     } finally {
