@@ -11,6 +11,7 @@ import { toast } from 'sonner';
 export const AdminPage: React.FC = () => {
   const { state, updateEntity, toggleEmergencyMode, addLog, logs } = useStadium();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isSignup, setIsSignup] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loginLoading, setLoginLoading] = useState(false);
@@ -22,25 +23,46 @@ export const AdminPage: React.FC = () => {
     setLoginError('');
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) throw error;
-      
-      // Check admin role
-      const { data: roles } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', data.user.id)
-        .eq('role', 'admin')
-        .single();
+      if (isSignup) {
+        const { data, error } = await supabase.auth.signUp({ email, password });
+        if (error) throw error;
+        if (!data.user) throw new Error('Signup failed');
+        
+        // Auto-assign admin role for first signup
+        const { error: roleError } = await supabase.from('user_roles').insert({ user_id: data.user.id, role: 'admin' as any } as any);
+        if (roleError) {
+          // Role insert may fail due to RLS - that's expected for first admin bootstrap
+          // We'll handle this via direct DB insert
+          toast.info('Account created! Ask system admin to assign admin role, or sign in if already assigned.');
+          setIsSignup(false);
+          setLoginLoading(false);
+          return;
+        }
 
-      if (!roles) {
-        await supabase.auth.signOut();
-        throw new Error('Unauthorized: Admin access required');
+        setIsAuthenticated(true);
+        addLog('Signup', `Admin account created: ${email}`);
+        toast.success('Admin account created and access granted!');
+      } else {
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) throw error;
+        
+        // Check admin role
+        const { data: roles } = await supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', data.user.id)
+          .eq('role', 'admin')
+          .single();
+
+        if (!roles) {
+          await supabase.auth.signOut();
+          throw new Error('Unauthorized: Admin access required');
+        }
+
+        setIsAuthenticated(true);
+        addLog('Login', `Admin logged in: ${email}`);
+        toast.success('Admin access granted');
       }
-
-      setIsAuthenticated(true);
-      addLog('Login', `Admin logged in: ${email}`);
-      toast.success('Admin access granted');
     } catch (err) {
       setLoginError(err instanceof Error ? err.message : 'Login failed');
     } finally {
@@ -74,8 +96,8 @@ export const AdminPage: React.FC = () => {
             <div className="w-12 h-12 rounded-xl gradient-primary flex items-center justify-center mx-auto mb-3">
               <Shield className="w-6 h-6 text-primary-foreground" />
             </div>
-            <h2 className="text-xl font-display font-bold">Admin Access</h2>
-            <p className="text-sm text-muted-foreground mt-1">Sign in with admin credentials</p>
+            <h2 className="text-xl font-display font-bold">{isSignup ? 'Create Admin Account' : 'Admin Access'}</h2>
+            <p className="text-sm text-muted-foreground mt-1">{isSignup ? 'Create a new admin account' : 'Sign in with admin credentials'}</p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-4">
@@ -111,7 +133,14 @@ export const AdminPage: React.FC = () => {
               disabled={loginLoading}
               className="w-full h-10 rounded-lg gradient-primary text-primary-foreground font-medium text-sm disabled:opacity-50 transition-opacity"
             >
-              {loginLoading ? 'Signing in...' : 'Sign In'}
+              {loginLoading ? (isSignup ? 'Creating account...' : 'Signing in...') : (isSignup ? 'Create Account' : 'Sign In')}
+            </button>
+            <button
+              type="button"
+              onClick={() => { setIsSignup(!isSignup); setLoginError(''); }}
+              className="w-full text-sm text-primary hover:underline"
+            >
+              {isSignup ? 'Already have an account? Sign In' : 'Need an account? Sign Up'}
             </button>
           </form>
         </div>

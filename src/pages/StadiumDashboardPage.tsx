@@ -171,7 +171,7 @@ export const StadiumDashboardPage: React.FC = () => {
               const riskLevel = riskPct >= 80 ? 'High' : riskPct >= 60 ? 'Medium' : 'Low';
               const riskColor = riskPct >= 80 ? 'text-destructive' : riskPct >= 60 ? 'text-neon-amber' : 'text-secondary';
               return (
-                <div key={event.id} className="px-4 py-3 flex items-center justify-between">
+                <div key={event.id} className="px-4 py-3 flex items-center justify-between cursor-pointer hover:bg-muted/30 transition-colors" onClick={() => navigate(`/event/${event.id}`)}>
                   <div>
                     <p className="font-medium text-sm">{event.event_name}</p>
                     <p className="text-xs text-muted-foreground">
@@ -210,7 +210,7 @@ export const StadiumDashboardPage: React.FC = () => {
               </thead>
               <tbody>
                 {completedEvents.map(event => (
-                  <tr key={event.id} className="border-b border-border/10">
+                  <tr key={event.id} className="border-b border-border/10 cursor-pointer hover:bg-muted/30 transition-colors" onClick={() => navigate(`/event/${event.id}`)}>
                     <td className="px-4 py-2.5 font-medium">{event.event_name}</td>
                     <td className="px-4 py-2.5 text-muted-foreground">{new Date(event.event_date).toLocaleDateString()}</td>
                     <td className="px-4 py-2.5 font-mono">{(event.current_attendance / 1000).toFixed(1)}K</td>
