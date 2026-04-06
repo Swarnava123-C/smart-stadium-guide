@@ -4,7 +4,8 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { StadiumProvider } from "@/contexts/StadiumContext";
 import { AppLayout } from "@/components/AppLayout";
-import { DashboardPage } from "@/pages/DashboardPage";
+import { IndiaMapPage } from "@/pages/IndiaMapPage";
+import { StadiumDashboardPage } from "@/pages/StadiumDashboardPage";
 import { AIAssistantPage } from "@/pages/AssistantPage";
 import { StadiumMapPage } from "@/pages/MapPage";
 import { AdminPage } from "@/pages/AdminPage";
@@ -20,9 +21,10 @@ const App = () => (
         <BrowserRouter>
           <AppLayout>
             <Routes>
-              <Route path="/" element={<DashboardPage />} />
+              <Route path="/" element={<IndiaMapPage />} />
+              <Route path="/stadium/:id" element={<StadiumDashboardPage />} />
               <Route path="/assistant" element={<AIAssistantPage />} />
-              <Route path="/map" element={<StadiumMapPage />} />
+              <Route path="/venue-map" element={<StadiumMapPage />} />
               <Route path="/admin" element={<AdminPage />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
