@@ -14,6 +14,136 @@ export type Database = {
   }
   public: {
     Tables: {
+      attendance_logs: {
+        Row: {
+          avg_wait_time: number
+          created_at: string
+          current_attendance: number
+          entry_rate: number
+          event_id: string
+          gate_statuses: Json
+          id: string
+          surge_risk_score: number
+        }
+        Insert: {
+          avg_wait_time?: number
+          created_at?: string
+          current_attendance?: number
+          entry_rate?: number
+          event_id: string
+          gate_statuses?: Json
+          id?: string
+          surge_risk_score?: number
+        }
+        Update: {
+          avg_wait_time?: number
+          created_at?: string
+          current_attendance?: number
+          entry_rate?: number
+          event_id?: string
+          gate_statuses?: Json
+          id?: string
+          surge_risk_score?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "attendance_logs_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      events: {
+        Row: {
+          created_at: string
+          current_attendance: number
+          event_date: string
+          event_name: string
+          expected_attendance: number
+          id: string
+          risk_score: number | null
+          stadium_id: string
+          status: Database["public"]["Enums"]["event_status"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          current_attendance?: number
+          event_date: string
+          event_name: string
+          expected_attendance: number
+          id?: string
+          risk_score?: number | null
+          stadium_id: string
+          status?: Database["public"]["Enums"]["event_status"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          current_attendance?: number
+          event_date?: string
+          event_name?: string
+          expected_attendance?: number
+          id?: string
+          risk_score?: number | null
+          stadium_id?: string
+          status?: Database["public"]["Enums"]["event_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "events_stadium_id_fkey"
+            columns: ["stadium_id"]
+            isOneToOne: false
+            referencedRelation: "stadiums"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stadiums: {
+        Row: {
+          capacity: number
+          city: string
+          created_at: string
+          crowd_status: Database["public"]["Enums"]["crowd_status"]
+          id: string
+          image_url: string | null
+          latitude: number
+          longitude: number
+          name: string
+          state: string
+          updated_at: string
+        }
+        Insert: {
+          capacity: number
+          city: string
+          created_at?: string
+          crowd_status?: Database["public"]["Enums"]["crowd_status"]
+          id?: string
+          image_url?: string | null
+          latitude: number
+          longitude: number
+          name: string
+          state: string
+          updated_at?: string
+        }
+        Update: {
+          capacity?: number
+          city?: string
+          created_at?: string
+          crowd_status?: Database["public"]["Enums"]["crowd_status"]
+          id?: string
+          image_url?: string | null
+          latitude?: number
+          longitude?: number
+          name?: string
+          state?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -50,6 +180,8 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "moderator" | "user"
+      crowd_status: "low" | "medium" | "high"
+      event_status: "upcoming" | "live" | "completed"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -178,6 +310,8 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "moderator", "user"],
+      crowd_status: ["low", "medium", "high"],
+      event_status: ["upcoming", "live", "completed"],
     },
   },
 } as const
