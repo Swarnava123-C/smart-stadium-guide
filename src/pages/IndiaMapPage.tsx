@@ -1,9 +1,8 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MapContainer, TileLayer, CircleMarker, Popup } from 'react-leaflet';
+import L from 'leaflet';
 import { useStadiums, Stadium } from '@/hooks/useStadiums';
-import { Loader2, MapPin, Users } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { Loader2, Users } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
 
 const crowdColor = (status: string) =>
@@ -15,6 +14,73 @@ const crowdLabel = (status: string) =>
 export const IndiaMapPage: React.FC = () => {
   const { stadiums, loading } = useStadiums();
   const navigate = useNavigate();
+  const mapRef = useRef<HTMLDivElement>(null);
+  const leafletMap = useRef<L.Map | null>(null);
+
+  useEffect(() => {
+    if (!mapRef.current || loading || leafletMap.current) return;
+
+    const map = L.map(mapRef.current, {
+      center: [22.5, 79.0],
+      zoom: 5,
+      scrollWheelZoom: true,
+      attributionControl: false,
+    });
+
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+      attribution: '&copy; CARTO',
+    }).addTo(map);
+
+    leafletMap.current = map;
+
+    return () => {
+      map.remove();
+      leafletMap.current = null;
+    };
+  }, [loading]);
+
+  // Add markers when stadiums load
+  useEffect(() => {
+    const map = leafletMap.current;
+    if (!map || stadiums.length === 0) return;
+
+    const markers: L.CircleMarker[] = [];
+
+    stadiums.forEach((stadium) => {
+      const color = crowdColor(stadium.crowd_status);
+      const radius = stadium.crowd_status === 'high' ? 14 : stadium.crowd_status === 'medium' ? 11 : 9;
+
+      const marker = L.circleMarker([stadium.latitude, stadium.longitude], {
+        radius,
+        color,
+        fillColor: color,
+        fillOpacity: 0.6,
+        weight: 2,
+      }).addTo(map);
+
+      marker.bindPopup(`
+        <div style="font-size:12px;min-width:150px;">
+          <p style="font-weight:bold;font-size:13px;margin:0 0 4px;">${stadium.name}</p>
+          <p style="color:#888;margin:0 0 4px;">${stadium.city}, ${stadium.state}</p>
+          <p style="margin:0 0 4px;">Capacity: ${(stadium.capacity / 1000).toFixed(0)}K</p>
+          <p style="margin:0 0 4px;">
+            <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${color};margin-right:4px;"></span>
+            ${crowdLabel(stadium.crowd_status)}
+          </p>
+        </div>
+      `);
+
+      marker.on('click', () => {
+        navigate(`/stadium/${stadium.id}`);
+      });
+
+      markers.push(marker);
+    });
+
+    return () => {
+      markers.forEach((m) => m.remove());
+    };
+  }, [stadiums, navigate]);
 
   if (loading) {
     return (
@@ -41,60 +107,11 @@ export const IndiaMapPage: React.FC = () => {
       </div>
 
       {/* Map */}
-      <div className="glass rounded-xl overflow-hidden" style={{ height: 'calc(100vh - 220px)', minHeight: '400px' }}>
-        <MapContainer
-          center={[22.5, 79.0]}
-          zoom={5}
-          style={{ height: '100%', width: '100%', background: 'hsl(222 47% 6%)' }}
-          scrollWheelZoom={true}
-          attributionControl={false}
-        >
-          <TileLayer
-            url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
-            attribution='&copy; <a href="https://carto.com/">CARTO</a>'
-          />
-          {stadiums.map((stadium) => (
-            <CircleMarker
-              key={stadium.id}
-              center={[stadium.latitude, stadium.longitude]}
-              radius={stadium.crowd_status === 'high' ? 14 : stadium.crowd_status === 'medium' ? 11 : 9}
-              pathOptions={{
-                color: crowdColor(stadium.crowd_status),
-                fillColor: crowdColor(stadium.crowd_status),
-                fillOpacity: 0.6,
-                weight: 2,
-              }}
-              eventHandlers={{
-                click: () => navigate(`/stadium/${stadium.id}`),
-              }}
-            >
-              <Popup>
-                <div className="text-xs space-y-1 min-w-[150px]">
-                  <p className="font-bold text-sm">{stadium.name}</p>
-                  <p className="text-muted-foreground">{stadium.city}, {stadium.state}</p>
-                  <div className="flex items-center gap-1">
-                    <Users className="w-3 h-3" />
-                    <span>Capacity: {(stadium.capacity / 1000).toFixed(0)}K</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <span
-                      className="w-2 h-2 rounded-full"
-                      style={{ backgroundColor: crowdColor(stadium.crowd_status) }}
-                    />
-                    <span>{crowdLabel(stadium.crowd_status)}</span>
-                  </div>
-                  <button
-                    onClick={() => navigate(`/stadium/${stadium.id}`)}
-                    className="mt-1 text-primary underline text-xs"
-                  >
-                    View Dashboard →
-                  </button>
-                </div>
-              </Popup>
-            </CircleMarker>
-          ))}
-        </MapContainer>
-      </div>
+      <div
+        ref={mapRef}
+        className="glass rounded-xl overflow-hidden"
+        style={{ height: 'calc(100vh - 220px)', minHeight: '400px' }}
+      />
 
       {/* Stadium List */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
