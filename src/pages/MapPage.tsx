@@ -1,9 +1,12 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
 import { useStadium } from '@/contexts/StadiumContext';
+import { useStadiumDetail } from '@/hooks/useStadiums';
+import { generateVenueEntities } from '@/data/venueGenerator';
 import { cn } from '@/lib/utils';
 import { CrowdBadge } from '@/components/CrowdBadge';
-import { VenueEntity, VenueEntityType } from '@/types/stadium';
-import { MapPin, Utensils, DoorOpen, Armchair, AlertTriangle, ShowerHead } from 'lucide-react';
+import { VenueEntity, VenueEntityType, CrowdDensity } from '@/types/stadium';
+import { MapPin, Utensils, DoorOpen, Armchair, AlertTriangle, ShowerHead, ArrowLeft, Loader2, Activity } from 'lucide-react';
 
 const typeIcons: Record<VenueEntityType, React.ReactNode> = {
   gate: <DoorOpen className="w-4 h-4" />,
@@ -16,12 +19,96 @@ const typeIcons: Record<VenueEntityType, React.ReactNode> = {
 const densityColor = (d: string) =>
   d === 'low' ? 'hsl(160,84%,45%)' : d === 'medium' ? 'hsl(38,92%,50%)' : 'hsl(0,72%,51%)';
 
+// Simulate crowd fluctuations for live events
+function simulateEntity(entity: VenueEntity): VenueEntity {
+  if (entity.type === 'emergency_exit') return entity;
+  const capacity = entity.capacity || 100;
+  const currentOcc = entity.currentOccupancy || 0;
+  const fluctuation = (Math.random() - 0.5) * 0.1;
+  const newOcc = Math.max(0, Math.min(capacity, Math.round(currentOcc + capacity * fluctuation)));
+  const ratio = newOcc / capacity;
+  const density: CrowdDensity = ratio < 0.4 ? 'low' : ratio < 0.7 ? 'medium' : 'high';
+  const baseWait = entity.type === 'food_stall' ? 5 : entity.type === 'washroom' ? 3 : entity.type === 'gate' ? 2 : 0;
+  return {
+    ...entity,
+    currentOccupancy: newOcc,
+    crowdDensity: density,
+    estimatedWaitTime: Math.round(baseWait + ratio * baseWait * 3),
+  };
+}
+
 export const StadiumMapPage: React.FC = () => {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
   const { state } = useStadium();
+  const { stadium, events, loading } = useStadiumDetail(id);
+
   const [selected, setSelected] = useState<VenueEntity | null>(null);
   const [filter, setFilter] = useState<VenueEntityType | 'all'>('all');
 
-  const filtered = filter === 'all' ? state.entities : state.entities.filter(e => e.type === filter);
+  // Generate stadium-specific venue entities
+  const baseEntities = useMemo(() => {
+    if (!stadium) return [];
+    return generateVenueEntities(stadium.id, stadium.name, stadium.capacity);
+  }, [stadium]);
+
+  const [entities, setEntities] = useState<VenueEntity[]>([]);
+
+  // Initialize entities when base changes
+  useEffect(() => {
+    setEntities(baseEntities);
+  }, [baseEntities]);
+
+  const liveEvent = events.find(e => e.status === 'live');
+
+  // Real-time simulation for live events
+  useEffect(() => {
+    if (!liveEvent || state.isEmergencyMode) return;
+    const interval = setInterval(() => {
+      setEntities(prev => prev.map(simulateEntity));
+    }, 8000);
+    return () => clearInterval(interval);
+  }, [liveEvent, state.isEmergencyMode]);
+
+  // In emergency mode, force all gates open and mark exits
+  useEffect(() => {
+    if (state.isEmergencyMode) {
+      setEntities(prev => prev.map(e => {
+        if (e.type === 'gate') return { ...e, isAvailable: true, crowdDensity: 'high' as CrowdDensity };
+        if (e.type === 'emergency_exit') return { ...e, isAvailable: true };
+        return e;
+      }));
+    }
+  }, [state.isEmergencyMode]);
+
+  if (!id) {
+    return (
+      <div className="text-center py-20 space-y-3">
+        <MapPin className="w-10 h-10 text-muted-foreground mx-auto" />
+        <p className="text-muted-foreground">Select a stadium from the map to view its venue layout</p>
+        <button onClick={() => navigate('/')} className="text-primary text-sm underline">Go to Stadium Map</button>
+      </div>
+    );
+  }
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-[60vh]">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!stadium) {
+    return (
+      <div className="text-center py-20">
+        <p className="text-muted-foreground">Stadium not found</p>
+        <button onClick={() => navigate('/')} className="text-primary text-sm mt-2 underline">Go back</button>
+      </div>
+    );
+  }
+
+  const filtered = filter === 'all' ? entities : entities.filter(e => e.type === filter);
 
   const filters: { value: VenueEntityType | 'all'; label: string }[] = [
     { value: 'all', label: 'All' },
@@ -34,12 +121,45 @@ export const StadiumMapPage: React.FC = () => {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h2 className="text-2xl font-display font-bold">
-          <span className="gradient-text">Stadium Map</span>
-        </h2>
-        <p className="text-sm text-muted-foreground">Interactive venue layout with live crowd indicators</p>
+      {/* Header */}
+      <div className="flex items-start gap-3">
+        <button
+          onClick={() => navigate(`/stadium/${id}`)}
+          className="mt-1 p-1.5 rounded-lg glass hover:bg-muted/50 transition-colors"
+          aria-label="Back to dashboard"
+        >
+          <ArrowLeft className="w-4 h-4" />
+        </button>
+        <div className="flex-1">
+          <h2 className="text-2xl font-display font-bold">
+            <span className="gradient-text">{stadium.name} — Venue Map</span>
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            {stadium.city}, {stadium.state} • Capacity: {(stadium.capacity / 1000).toFixed(0)}K
+            {liveEvent && <span className="text-secondary ml-2">• 🔴 {liveEvent.event_name} (LIVE)</span>}
+          </p>
+        </div>
+        <CrowdBadge density={stadium.crowd_status as any} />
       </div>
+
+      {/* Live Event Banner */}
+      {liveEvent && (
+        <div className="glass rounded-xl p-3 flex items-center gap-3 border-secondary/30 bg-secondary/5">
+          <Activity className="w-5 h-5 text-secondary animate-pulse" />
+          <div>
+            <p className="text-sm font-semibold text-secondary">Live Event: {liveEvent.event_name}</p>
+            <p className="text-xs text-muted-foreground">
+              Attendance: {(liveEvent.current_attendance / 1000).toFixed(1)}K / {(liveEvent.expected_attendance / 1000).toFixed(0)}K — Venue data updating in real-time
+            </p>
+          </div>
+        </div>
+      )}
+
+      {!liveEvent && (
+        <div className="glass rounded-xl p-3 text-center">
+          <p className="text-sm text-muted-foreground">No live event — showing default venue layout with static data</p>
+        </div>
+      )}
 
       {/* Filters */}
       <div className="flex flex-wrap gap-2" role="tablist" aria-label="Map filters">
@@ -63,23 +183,19 @@ export const StadiumMapPage: React.FC = () => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* SVG Map */}
-        <div className="lg:col-span-2 glass rounded-xl p-4 relative" role="img" aria-label="Stadium map">
+        <div className="lg:col-span-2 glass rounded-xl p-4 relative" role="img" aria-label="Stadium venue map">
           <svg viewBox="0 0 100 100" className="w-full aspect-square max-h-[500px]" aria-hidden="true">
-            {/* Stadium outline */}
             <ellipse cx="50" cy="50" rx="45" ry="45" fill="none" stroke="hsl(var(--border))" strokeWidth="0.5" opacity="0.5" />
             <ellipse cx="50" cy="50" rx="35" ry="35" fill="none" stroke="hsl(var(--border))" strokeWidth="0.3" opacity="0.3" />
-            {/* Field */}
             <rect x="35" y="40" width="30" height="20" rx="2" fill="hsl(160,84%,45%)" opacity="0.15" stroke="hsl(160,84%,45%)" strokeWidth="0.3" />
             <text x="50" y="51" textAnchor="middle" fill="hsl(var(--muted-foreground))" fontSize="2" fontFamily="Inter">FIELD</text>
 
-            {/* Emergency mode overlay */}
             {state.isEmergencyMode && (
               <rect x="0" y="0" width="100" height="100" fill="hsl(0,72%,51%)" opacity="0.05">
                 <animate attributeName="opacity" values="0.02;0.08;0.02" dur="2s" repeatCount="indefinite" />
               </rect>
             )}
 
-            {/* Entities */}
             {filtered.map(entity => {
               const isEmergencyExit = entity.type === 'emergency_exit';
               const showPulse = state.isEmergencyMode && isEmergencyExit;
@@ -126,7 +242,6 @@ export const StadiumMapPage: React.FC = () => {
             })}
           </svg>
 
-          {/* Legend */}
           <div className="absolute bottom-4 left-4 flex gap-3 text-[10px] text-muted-foreground">
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-secondary" /> Low</span>
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-neon-amber" /> Medium</span>
