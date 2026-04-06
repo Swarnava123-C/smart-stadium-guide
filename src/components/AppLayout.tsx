@@ -2,15 +2,15 @@ import React from 'react';
 import { NavLink as RouterNavLink } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { 
-  LayoutDashboard, MessageSquare, Map, Shield, AlertTriangle,
+  MapPin, MessageSquare, Map, Shield, AlertTriangle,
   Menu, X
 } from 'lucide-react';
 import { useStadium } from '@/contexts/StadiumContext';
 
 const navItems = [
-  { to: '/', icon: LayoutDashboard, label: 'Dashboard' },
+  { to: '/', icon: MapPin, label: 'Stadiums' },
   { to: '/assistant', icon: MessageSquare, label: 'AI Assistant' },
-  { to: '/map', icon: Map, label: 'Stadium Map' },
+  { to: '/venue-map', icon: Map, label: 'Venue Map' },
   { to: '/admin', icon: Shield, label: 'Admin' },
 ];
 
@@ -48,7 +48,7 @@ export const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children })
         )}
 
         <div className={cn("ml-auto text-xs text-muted-foreground hidden sm:block", state.isEmergencyMode && "ml-0")}>
-          {state.eventName}
+          National Stadium Intelligence
         </div>
       </header>
 
