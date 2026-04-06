@@ -96,8 +96,8 @@ export const AdminPage: React.FC = () => {
             <div className="w-12 h-12 rounded-xl gradient-primary flex items-center justify-center mx-auto mb-3">
               <Shield className="w-6 h-6 text-primary-foreground" />
             </div>
-            <h2 className="text-xl font-display font-bold">Admin Access</h2>
-            <p className="text-sm text-muted-foreground mt-1">Sign in with admin credentials</p>
+            <h2 className="text-xl font-display font-bold">{isSignup ? 'Create Admin Account' : 'Admin Access'}</h2>
+            <p className="text-sm text-muted-foreground mt-1">{isSignup ? 'Create a new admin account' : 'Sign in with admin credentials'}</p>
           </div>
 
           <form onSubmit={handleLogin} className="space-y-4">
