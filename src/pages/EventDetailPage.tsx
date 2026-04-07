@@ -55,7 +55,7 @@ export const EventDetailPage: React.FC = () => {
   const avgWaitTime = latestLog?.avg_wait_time || 0;
 
   // Generate dynamic venue entities based on stadium
-  const baseEntities = generateVenueEntities(stadium.id, stadium.capacity);
+  const baseEntities = generateVenueEntities(stadium.id, stadium.name, stadium.capacity);
   const venueEntities = baseEntities.map(entity => {
     if (isPast) {
       return { ...entity, isAvailable: false, crowdDensity: 'low' as CrowdDensity, estimatedWaitTime: 0, currentOccupancy: 0 };
