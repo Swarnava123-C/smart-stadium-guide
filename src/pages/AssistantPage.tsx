@@ -1,11 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Bot, User, Loader2, MapPin, Calendar } from 'lucide-react';
+import { Send, Bot, User, Loader2, MapPin, Calendar, Mic, MicOff, Phone, PhoneOff, Volume2, VolumeX, Globe } from 'lucide-react';
 import { useStadiums, useStadiumDetail } from '@/hooks/useStadiums';
+import { useVoice, LANGUAGES, SupportedLanguage } from '@/hooks/useVoice';
 import { ChatMessage } from '@/types/stadium';
 import { cn } from '@/lib/utils';
 import ReactMarkdown from 'react-markdown';
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/stadium-chat`;
+
+type AssistantMode = 'chat' | 'call';
 
 export const AIAssistantPage: React.FC = () => {
   const { stadiums } = useStadiums();
@@ -15,6 +18,10 @@ export const AIAssistantPage: React.FC = () => {
 
   const selectedStadium = stadiums.find(s => s.id === selectedStadiumId);
   const selectedEvent = events.find(e => e.id === selectedEventId);
+
+  const [mode, setMode] = useState<AssistantMode>('chat');
+  const { isListening, isSpeaking, language, setLanguage, startListening, stopListening, speak, stopSpeaking } = useVoice();
+  const [autoSpeak, setAutoSpeak] = useState(true);
 
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
@@ -33,7 +40,6 @@ export const AIAssistantPage: React.FC = () => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
   }, [messages]);
 
-  // Reset event when stadium changes
   useEffect(() => {
     setSelectedEventId(null);
   }, [selectedStadiumId]);
@@ -75,6 +81,7 @@ export const AIAssistantPage: React.FC = () => {
           messages: chatMessages,
           selectedStadiumId,
           selectedEventId,
+          language: language,
         }),
       });
 
@@ -82,7 +89,7 @@ export const AIAssistantPage: React.FC = () => {
         const errData = await resp.json().catch(() => ({}));
         throw new Error(
           resp.status === 429 ? 'Rate limited. Please wait a moment.' :
-          resp.status === 402 ? 'AI credits exhausted. Please add funds in Settings → Workspace → Usage.' :
+          resp.status === 402 ? 'AI credits exhausted.' :
           errData.error || 'Failed to get response'
         );
       }
@@ -120,13 +127,18 @@ export const AIAssistantPage: React.FC = () => {
           } catch { /* partial JSON */ }
         }
       }
+
+      // Auto-speak in call mode
+      if (mode === 'call' && autoSpeak && assistantContent) {
+        speak(assistantContent);
+      }
     } catch (err) {
       setMessages(prev => [
         ...prev,
         {
           id: crypto.randomUUID(),
           role: 'assistant',
-          content: `⚠️ ${err instanceof Error ? err.message : 'Something went wrong. Please try again.'}`,
+          content: `⚠️ ${err instanceof Error ? err.message : 'Something went wrong.'}`,
           timestamp: new Date(),
         },
       ]);
@@ -136,13 +148,78 @@ export const AIAssistantPage: React.FC = () => {
     }
   };
 
+  const handleVoiceInput = () => {
+    if (isListening) {
+      stopListening();
+      return;
+    }
+    startListening(
+      (transcript) => sendMessage(transcript),
+      (err) => {
+        setMessages(prev => [...prev, {
+          id: crypto.randomUUID(),
+          role: 'assistant',
+          content: `🎤 ${err}`,
+          timestamp: new Date(),
+        }]);
+      }
+    );
+  };
+
+  const toggleCallMode = () => {
+    if (mode === 'call') {
+      setMode('chat');
+      stopListening();
+      stopSpeaking();
+    } else {
+      setMode('call');
+    }
+  };
+
   return (
     <div className="flex flex-col h-[calc(100vh-3.5rem)] max-w-3xl mx-auto">
+      {/* Header */}
       <div className="mb-3">
-        <h2 className="text-2xl font-display font-bold">
-          <span className="gradient-text">AI Assistant</span>
-        </h2>
-        <p className="text-sm text-muted-foreground">Get real-time venue guidance powered by AI</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-display font-bold">
+              <span className="gradient-text">AI Assistant</span>
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              {mode === 'call' ? '🎙 Call Mode — Speak your questions' : 'Chat Mode — Type your questions'}
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            {/* Language selector */}
+            <div className="flex items-center gap-1">
+              <Globe className="w-3.5 h-3.5 text-muted-foreground" />
+              <select
+                value={language}
+                onChange={e => setLanguage(e.target.value as SupportedLanguage)}
+                className="h-8 rounded-lg bg-muted/50 border border-border/50 px-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary/50"
+                aria-label="Language"
+              >
+                {LANGUAGES.map(l => (
+                  <option key={l.code} value={l.code}>{l.label}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Mode toggle */}
+            <button
+              onClick={toggleCallMode}
+              className={cn(
+                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all',
+                mode === 'call'
+                  ? 'bg-destructive/20 border border-destructive/40 text-destructive'
+                  : 'glass border-primary/20 text-primary hover:bg-primary/10'
+              )}
+            >
+              {mode === 'call' ? <PhoneOff className="w-3.5 h-3.5" /> : <Phone className="w-3.5 h-3.5" />}
+              {mode === 'call' ? 'End Call' : 'Call Mode'}
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Stadium & Event Selectors */}
@@ -161,7 +238,6 @@ export const AIAssistantPage: React.FC = () => {
             ))}
           </select>
         </div>
-
         <div className="flex items-center gap-2 flex-1 min-w-[200px]">
           <Calendar className="w-4 h-4 text-primary shrink-0" />
           <select
@@ -203,35 +279,72 @@ export const AIAssistantPage: React.FC = () => {
         </div>
       )}
 
+      {/* Call Mode UI */}
+      {mode === 'call' && (
+        <div className="glass rounded-xl p-4 mb-3 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleVoiceInput}
+              className={cn(
+                'w-12 h-12 rounded-full flex items-center justify-center transition-all',
+                isListening
+                  ? 'bg-destructive animate-pulse shadow-lg shadow-destructive/30'
+                  : 'gradient-primary hover:shadow-lg hover:shadow-primary/30'
+              )}
+              aria-label={isListening ? 'Stop listening' : 'Start speaking'}
+            >
+              {isListening ? <MicOff className="w-5 h-5 text-destructive-foreground" /> : <Mic className="w-5 h-5 text-primary-foreground" />}
+            </button>
+            <div>
+              <p className="text-sm font-medium">{isListening ? 'Listening...' : isSpeaking ? 'Speaking...' : 'Tap to speak'}</p>
+              <p className="text-xs text-muted-foreground">{LANGUAGES.find(l => l.code === language)?.label}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => { setAutoSpeak(!autoSpeak); if (isSpeaking) stopSpeaking(); }}
+              className={cn(
+                'p-2 rounded-lg transition-colors',
+                autoSpeak ? 'bg-primary/20 text-primary' : 'bg-muted text-muted-foreground'
+              )}
+              aria-label={autoSpeak ? 'Mute auto-speak' : 'Enable auto-speak'}
+            >
+              {autoSpeak ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Messages */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto space-y-4 pb-4" role="log" aria-label="Chat messages">
         {messages.map((msg) => (
           <div
             key={msg.id}
-            className={cn(
-              'flex gap-3 animate-fade-in',
-              msg.role === 'user' ? 'justify-end' : 'justify-start'
-            )}
+            className={cn('flex gap-3 animate-fade-in', msg.role === 'user' ? 'justify-end' : 'justify-start')}
           >
             {msg.role === 'assistant' && (
               <div className="w-8 h-8 rounded-lg gradient-primary flex items-center justify-center shrink-0">
                 <Bot className="w-4 h-4 text-primary-foreground" />
               </div>
             )}
-            <div
-              className={cn(
-                'max-w-[80%] rounded-xl px-4 py-3 text-sm leading-relaxed',
-                msg.role === 'user'
-                  ? 'bg-primary/20 border border-primary/30 text-foreground'
-                  : 'glass'
-              )}
-            >
+            <div className={cn(
+              'max-w-[80%] rounded-xl px-4 py-3 text-sm leading-relaxed',
+              msg.role === 'user' ? 'bg-primary/20 border border-primary/30 text-foreground' : 'glass'
+            )}>
               <div className="prose prose-sm prose-invert max-w-none [&_p]:mb-2 [&_ul]:mb-2 [&_ol]:mb-2 [&_li]:mb-0.5 [&_strong]:text-foreground [&_h1]:text-lg [&_h2]:text-base [&_h3]:text-sm">
                 <ReactMarkdown>{msg.content}</ReactMarkdown>
               </div>
-              <time className="text-[10px] text-muted-foreground mt-1 block">
-                {msg.timestamp.toLocaleTimeString()}
-              </time>
+              <div className="flex items-center gap-2 mt-1">
+                <time className="text-[10px] text-muted-foreground">{msg.timestamp.toLocaleTimeString()}</time>
+                {msg.role === 'assistant' && msg.content && msg.id !== '1' && (
+                  <button
+                    onClick={() => isSpeaking ? stopSpeaking() : speak(msg.content)}
+                    className="text-[10px] text-primary hover:underline"
+                  >
+                    {isSpeaking ? '⏹ Stop' : '🔊 Listen'}
+                  </button>
+                )}
+              </div>
             </div>
             {msg.role === 'user' && (
               <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center shrink-0">
@@ -268,20 +381,30 @@ export const AIAssistantPage: React.FC = () => {
       )}
 
       {/* Input */}
-      <form
-        onSubmit={e => { e.preventDefault(); sendMessage(input); }}
-        className="flex gap-2"
-      >
+      <form onSubmit={e => { e.preventDefault(); sendMessage(input); }} className="flex gap-2">
         <input
           ref={inputRef}
           value={input}
           onChange={e => setInput(e.target.value)}
-          placeholder={selectedStadium ? `Ask about ${selectedStadium.name}...` : "Ask about gates, food, washrooms, navigation..."}
+          placeholder={selectedStadium ? `Ask about ${selectedStadium.name}...` : "Ask about gates, food, washrooms..."}
           className="flex-1 h-11 rounded-xl bg-muted/50 border border-border/50 px-4 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all"
           disabled={isLoading}
           aria-label="Message input"
           maxLength={500}
         />
+        {mode === 'call' && (
+          <button
+            type="button"
+            onClick={handleVoiceInput}
+            className={cn(
+              'h-11 w-11 rounded-xl flex items-center justify-center transition-all',
+              isListening ? 'bg-destructive text-destructive-foreground animate-pulse' : 'glass text-primary hover:bg-primary/10'
+            )}
+            aria-label={isListening ? 'Stop listening' : 'Speak'}
+          >
+            {isListening ? <MicOff className="w-4 h-4" /> : <Mic className="w-4 h-4" />}
+          </button>
+        )}
         <button
           type="submit"
           disabled={isLoading || !input.trim()}

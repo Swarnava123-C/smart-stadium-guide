@@ -1,7 +1,7 @@
 import React from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useEventDetail } from '@/hooks/useEventDetail';
-import { initialVenueEntities } from '@/data/venueData';
+import { generateVenueEntities } from '@/data/venueGenerator';
 import { CrowdBadge } from '@/components/CrowdBadge';
 import { CrowdDensity } from '@/types/stadium';
 import { ArrowLeft, Calendar, Users, Clock, TrendingUp, DoorOpen, Utensils, Bath, Armchair, AlertTriangle, Loader2, Timer } from 'lucide-react';
@@ -53,18 +53,27 @@ export const EventDetailPage: React.FC = () => {
   const latestLog = logs.length > 0 ? logs[logs.length - 1] : null;
   const entryRate = latestLog?.entry_rate || 0;
   const avgWaitTime = latestLog?.avg_wait_time || 0;
-  const gateStatuses = (latestLog?.gate_statuses || {}) as Record<string, string>;
 
-  // Build venue entities with status based on event state
-  const venueEntities = initialVenueEntities.map(entity => {
+  // Generate dynamic venue entities based on stadium
+  const baseEntities = generateVenueEntities(stadium.id, stadium.capacity);
+  const venueEntities = baseEntities.map(entity => {
     if (isPast) {
       return { ...entity, isAvailable: false, crowdDensity: 'low' as CrowdDensity, estimatedWaitTime: 0, currentOccupancy: 0 };
     }
     if (isFuture) {
-      return { ...entity }; // keep defaults but we'll show "pending" in UI
+      return entity;
     }
-    // Live: use simulated data as-is
-    return entity;
+    // Live: simulate crowd based on current attendance ratio
+    const ratio = event.current_attendance / event.expected_attendance;
+    const entityRatio = Math.min(1, ratio * (0.7 + Math.random() * 0.6));
+    const density: CrowdDensity = entityRatio < 0.4 ? 'low' : entityRatio < 0.7 ? 'medium' : 'high';
+    const baseWait = entity.type === 'food_stall' ? 5 : entity.type === 'washroom' ? 3 : entity.type === 'gate' ? 2 : 0;
+    return {
+      ...entity,
+      crowdDensity: density,
+      estimatedWaitTime: Math.round(baseWait + entityRatio * baseWait * 3),
+      currentOccupancy: Math.round((entity.capacity || 100) * entityRatio),
+    };
   });
 
   const statusBadge = isLive
@@ -89,11 +98,7 @@ export const EventDetailPage: React.FC = () => {
     <div className="space-y-4">
       {/* Header */}
       <div className="flex items-start gap-3">
-        <button
-          onClick={() => navigate(-1)}
-          className="mt-1 p-1.5 rounded-lg glass hover:bg-muted/50 transition-colors"
-          aria-label="Go back"
-        >
+        <button onClick={() => navigate(-1)} className="mt-1 p-1.5 rounded-lg glass hover:bg-muted/50 transition-colors" aria-label="Go back">
           <ArrowLeft className="w-4 h-4" />
         </button>
         <div className="flex-1">
@@ -180,7 +185,7 @@ export const EventDetailPage: React.FC = () => {
         </div>
       )}
 
-      {/* Venue Status Table */}
+      {/* Venue Status Tables */}
       {entityGroups.map(group => {
         const entities = venueEntities.filter(e => group.types.includes(e.type));
         if (entities.length === 0) return null;
