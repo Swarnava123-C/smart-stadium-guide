@@ -3,18 +3,16 @@ import { useStadium } from '@/contexts/StadiumContext';
 import { useStadiums, useStadiumDetail } from '@/hooks/useStadiums';
 import { useECIRS } from '@/hooks/useECIRS';
 import { generateVenueEntities } from '@/data/venueGenerator';
-import { CrowdBadge } from '@/components/CrowdBadge';
-import { CrowdDensity, VenueEntity } from '@/types/stadium';
-import { Shield, AlertTriangle, Clock, Activity, LogOut, MapPin, Calendar, Siren, CheckCircle, FileText, DoorOpen, Utensils, Bath } from 'lucide-react';
+import { CrowdDensity } from '@/types/stadium';
+import { AdminEntityGrid } from '@/components/AdminEntityGrid';
+import { AdminExecutiveSummary } from '@/components/AdminExecutiveSummary';
+import { AdminSurgePrediction } from '@/components/AdminSurgePrediction';
+import { AdminTrendChart } from '@/components/AdminTrendChart';
+import { AttendanceTrendChart } from '@/components/AttendanceTrendChart';
+import { Shield, AlertTriangle, Activity, LogOut, MapPin, Calendar, Siren, CheckCircle, FileText, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-
-const typeIcons: Record<string, React.ReactNode> = {
-  gate: <DoorOpen className="w-4 h-4" />,
-  food_stall: <Utensils className="w-4 h-4" />,
-  washroom: <Bath className="w-4 h-4" />,
-};
 
 export const AdminPage: React.FC = () => {
   const { state, toggleEmergencyMode, addLog, logs } = useStadium();
@@ -35,42 +33,41 @@ export const AdminPage: React.FC = () => {
   const activeEvent = liveEvent || upcomingEvent;
   const isPast = !liveEvent && !upcomingEvent;
 
-  // ECIRS
   const {
-    alerts,
-    isRedAlert,
-    incidentActive,
-    incidentReport,
-    acknowledgeAlert,
-    resolveIncident,
-    dismissRedAlert,
+    alerts, isRedAlert, incidentActive, incidentReport,
+    acknowledgeAlert, resolveIncident, dismissRedAlert,
   } = useECIRS(
     attendanceLogs,
     liveEvent?.current_attendance || 0,
     liveEvent?.expected_attendance || 1,
   );
 
-  // Generate dynamic venue entities for selected stadium
   const venueEntities = stadium
     ? generateVenueEntities(stadium.id, stadium.name, stadium.capacity)
         .filter(e => e.type !== 'seat_block' && e.type !== 'emergency_exit')
     : [];
 
-  // Emergency sound effect
+  // Latest log metrics
+  const latestLog = attendanceLogs.length > 0 ? attendanceLogs[attendanceLogs.length - 1] : null;
+  const surgeRisk = latestLog?.surge_risk_score || 0;
+  const entryRate = latestLog?.entry_rate || 0;
+  const avgWaitTime = latestLog?.avg_wait_time || 0;
+  const gateStatuses = (latestLog?.gate_statuses || {}) as Record<string, string>;
+  const occupancyPct = liveEvent && stadium ? Math.round((liveEvent.current_attendance / stadium.capacity) * 100) : 0;
+
+  // Emergency sound
   useEffect(() => {
     if (isRedAlert) {
       try {
         const ctx = new AudioContext();
         const osc = ctx.createOscillator();
         const gain = ctx.createGain();
-        osc.connect(gain);
-        gain.connect(ctx.destination);
-        osc.frequency.value = 880;
-        gain.gain.value = 0.3;
+        osc.connect(gain); gain.connect(ctx.destination);
+        osc.frequency.value = 880; gain.gain.value = 0.3;
         osc.start();
         setTimeout(() => { gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5); }, 500);
         setTimeout(() => { osc.stop(); ctx.close(); }, 1500);
-      } catch { /* silent fallback */ }
+      } catch { /* silent */ }
     }
   }, [isRedAlert]);
 
@@ -78,7 +75,6 @@ export const AdminPage: React.FC = () => {
     e.preventDefault();
     setLoginLoading(true);
     setLoginError('');
-
     try {
       if (isSignup) {
         const { data, error } = await supabase.auth.signUp({ email, password });
@@ -87,9 +83,7 @@ export const AdminPage: React.FC = () => {
         const { error: roleError } = await supabase.from('user_roles').insert({ user_id: data.user.id, role: 'admin' as any } as any);
         if (roleError) {
           toast.info('Account created! Ask system admin to assign admin role.');
-          setIsSignup(false);
-          setLoginLoading(false);
-          return;
+          setIsSignup(false); setLoginLoading(false); return;
         }
         setIsAuthenticated(true);
         addLog('Signup', `Admin account created: ${email}`);
@@ -189,7 +183,7 @@ export const AdminPage: React.FC = () => {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-2xl font-display font-bold">
-            <span className="gradient-text">Admin Dashboard</span>
+            <span className="gradient-text">Admin Command Center</span>
           </h2>
           <p className="text-sm text-muted-foreground">
             {stadium ? `Managing: ${stadium.name}` : 'Select a stadium to manage'}
@@ -250,9 +244,7 @@ export const AdminPage: React.FC = () => {
               {liveEvent && (
                 <div className="text-right">
                   <p className="text-sm font-mono font-bold">{(liveEvent.current_attendance / 1000).toFixed(1)}K</p>
-                  <p className="text-xs text-muted-foreground">
-                    {Math.round((liveEvent.current_attendance / stadium.capacity) * 100)}% capacity
-                  </p>
+                  <p className="text-xs text-muted-foreground">{occupancyPct}% capacity</p>
                 </div>
               )}
               {!liveEvent && upcomingEvent && (
@@ -265,6 +257,39 @@ export const AdminPage: React.FC = () => {
             <div className="glass rounded-xl p-4 text-center">
               <p className="text-sm text-muted-foreground">No live or upcoming events. Historical data is read-only.</p>
             </div>
+          )}
+
+          {/* Executive Summary (LIVE only) */}
+          {liveEvent && (
+            <AdminExecutiveSummary
+              entities={venueEntities}
+              currentAttendance={liveEvent.current_attendance}
+              capacity={stadium.capacity}
+              surgeRisk={surgeRisk}
+              avgWaitTime={avgWaitTime}
+              entryRate={entryRate}
+            />
+          )}
+
+          {/* Surge Prediction Panel (LIVE only) */}
+          {liveEvent && (
+            <AdminSurgePrediction
+              surgeRisk={surgeRisk}
+              entryRate={entryRate}
+              avgWaitTime={avgWaitTime}
+              occupancyPct={occupancyPct}
+              gateStatuses={gateStatuses}
+              capacity={stadium.capacity}
+              currentAttendance={liveEvent.current_attendance}
+            />
+          )}
+
+          {/* Trend Charts (LIVE only) */}
+          {liveEvent && attendanceLogs.length > 0 && (
+            <>
+              <AdminTrendChart logs={attendanceLogs} />
+              <AttendanceTrendChart logs={attendanceLogs} expectedAttendance={liveEvent.expected_attendance} />
+            </>
           )}
 
           {/* ECIRS Alerts */}
@@ -333,45 +358,13 @@ export const AdminPage: React.FC = () => {
             </div>
           )}
 
-          {/* Venue Entity Controls (only for live events) */}
-          {liveEvent && !isPast && venueEntities.length > 0 && (
+          {/* Venue Entity Controls */}
+          {liveEvent && venueEntities.length > 0 && (
             <>
               <h3 className="text-sm font-semibold flex items-center gap-2">
-                <Activity className="w-4 h-4 text-primary" /> Live Venue Entities
+                <Activity className="w-4 h-4 text-primary" /> Live Venue Entities ({venueEntities.length})
               </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {venueEntities.map(entity => {
-                  const ratio = (entity.currentOccupancy || 0) / (entity.capacity || 100);
-                  const density: CrowdDensity = ratio < 0.4 ? 'low' : ratio < 0.7 ? 'medium' : 'high';
-                  return (
-                    <div key={entity.id} className="glass rounded-xl p-3 space-y-2">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          {typeIcons[entity.type]}
-                          <h4 className="font-semibold text-sm">{entity.name}</h4>
-                        </div>
-                        <CrowdBadge density={density} />
-                      </div>
-                      <div className="grid grid-cols-3 gap-2 text-xs">
-                        <div>
-                          <span className="text-muted-foreground">Occupancy</span>
-                          <p className="font-mono">{entity.currentOccupancy}/{entity.capacity}</p>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Wait</span>
-                          <p className="font-mono">{entity.estimatedWaitTime} min</p>
-                        </div>
-                        <div>
-                          <span className="text-muted-foreground">Status</span>
-                          <p className={entity.isAvailable ? 'text-secondary' : 'text-destructive'}>
-                            {entity.isAvailable ? 'Open' : 'Closed'}
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+              <AdminEntityGrid entities={venueEntities} isLive={true} />
             </>
           )}
 
@@ -384,6 +377,34 @@ export const AdminPage: React.FC = () => {
                 <div><span className="text-muted-foreground text-xs">Risk Score</span><p className="font-mono">{Math.round((upcomingEvent.risk_score || 0) * 100)}%</p></div>
                 <div><span className="text-muted-foreground text-xs">Event Date</span><p className="font-mono">{new Date(upcomingEvent.event_date).toLocaleDateString()}</p></div>
                 <div><span className="text-muted-foreground text-xs">Venue Entities</span><p className="font-mono">{venueEntities.length} configured</p></div>
+              </div>
+            </div>
+          )}
+
+          {/* Events List */}
+          {events.length > 0 && (
+            <div className="glass rounded-xl overflow-hidden">
+              <div className="px-4 py-3 border-b border-border/30 flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-primary" />
+                <h3 className="font-display font-semibold text-sm">All Events ({events.length})</h3>
+              </div>
+              <div className="max-h-60 overflow-y-auto divide-y divide-border/10">
+                {events.map(event => (
+                  <div key={event.id} className="px-4 py-2.5 flex items-center justify-between text-xs">
+                    <div>
+                      <p className="font-medium text-sm">{event.event_name}</p>
+                      <p className="text-muted-foreground">{new Date(event.event_date).toLocaleDateString()}</p>
+                    </div>
+                    <span className={cn(
+                      'px-2 py-0.5 rounded-full text-[10px] font-semibold',
+                      event.status === 'live' ? 'bg-secondary/20 text-secondary' :
+                      event.status === 'upcoming' ? 'bg-primary/20 text-primary' :
+                      'bg-muted text-muted-foreground'
+                    )}>
+                      {event.status}
+                    </span>
+                  </div>
+                ))}
               </div>
             </div>
           )}
