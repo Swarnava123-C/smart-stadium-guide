@@ -3,10 +3,13 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useStadium } from '@/contexts/StadiumContext';
 import { useStadiumDetail } from '@/hooks/useStadiums';
 import { generateVenueEntities } from '@/data/venueGenerator';
+import { useRouteOptimizer } from '@/hooks/useRouteOptimizer';
 import { cn } from '@/lib/utils';
 import { CrowdBadge } from '@/components/CrowdBadge';
+import { RouteOverlay } from '@/components/RouteOverlay';
+import { RouteInfoPanel } from '@/components/RouteInfoPanel';
 import { VenueEntity, VenueEntityType, CrowdDensity } from '@/types/stadium';
-import { MapPin, Utensils, DoorOpen, Armchair, AlertTriangle, ShowerHead, ArrowLeft, Loader2, Activity } from 'lucide-react';
+import { MapPin, Utensils, DoorOpen, Armchair, AlertTriangle, ShowerHead, ArrowLeft, Loader2, Activity, Navigation, X } from 'lucide-react';
 
 const typeIcons: Record<VenueEntityType, React.ReactNode> = {
   gate: <DoorOpen className="w-4 h-4" />,
@@ -19,7 +22,6 @@ const typeIcons: Record<VenueEntityType, React.ReactNode> = {
 const densityColor = (d: string) =>
   d === 'low' ? 'hsl(160,84%,45%)' : d === 'medium' ? 'hsl(38,92%,50%)' : 'hsl(0,72%,51%)';
 
-// Simulate crowd fluctuations for live events
 function simulateEntity(entity: VenueEntity): VenueEntity {
   if (entity.type === 'emergency_exit') return entity;
   const capacity = entity.capacity || 100;
@@ -45,8 +47,8 @@ export const StadiumMapPage: React.FC = () => {
 
   const [selected, setSelected] = useState<VenueEntity | null>(null);
   const [filter, setFilter] = useState<VenueEntityType | 'all'>('all');
+  const [showAlternateRoute, setShowAlternateRoute] = useState(false);
 
-  // Generate stadium-specific venue entities
   const baseEntities = useMemo(() => {
     if (!stadium) return [];
     return generateVenueEntities(stadium.id, stadium.name, stadium.capacity);
@@ -54,14 +56,15 @@ export const StadiumMapPage: React.FC = () => {
 
   const [entities, setEntities] = useState<VenueEntity[]>([]);
 
-  // Initialize entities when base changes
   useEffect(() => {
     setEntities(baseEntities);
   }, [baseEntities]);
 
   const liveEvent = events.find(e => e.status === 'live');
 
-  // Real-time simulation for live events
+  // Route optimizer
+  const { activeRoute, calculateOptimalRoute, clearRoute, userPosition } = useRouteOptimizer(entities, state.isEmergencyMode);
+
   useEffect(() => {
     if (!liveEvent || state.isEmergencyMode) return;
     const interval = setInterval(() => {
@@ -70,7 +73,6 @@ export const StadiumMapPage: React.FC = () => {
     return () => clearInterval(interval);
   }, [liveEvent, state.isEmergencyMode]);
 
-  // In emergency mode, force all gates open and mark exits
   useEffect(() => {
     if (state.isEmergencyMode) {
       setEntities(prev => prev.map(e => {
@@ -80,6 +82,19 @@ export const StadiumMapPage: React.FC = () => {
       }));
     }
   }, [state.isEmergencyMode]);
+
+  const handleNavigateTo = (entity: VenueEntity) => {
+    calculateOptimalRoute(entity);
+    setSelected(entity);
+    setShowAlternateRoute(false);
+  };
+
+  const handleSwitchToAlternate = () => {
+    if (activeRoute?.alternateRoute) {
+      calculateOptimalRoute(activeRoute.alternateRoute.destination);
+      setSelected(activeRoute.alternateRoute.destination);
+    }
+  };
 
   if (!id) {
     return (
@@ -146,10 +161,10 @@ export const StadiumMapPage: React.FC = () => {
       {liveEvent && (
         <div className="glass rounded-xl p-3 flex items-center gap-3 border-secondary/30 bg-secondary/5">
           <Activity className="w-5 h-5 text-secondary animate-pulse" />
-          <div>
+          <div className="flex-1">
             <p className="text-sm font-semibold text-secondary">Live Event: {liveEvent.event_name}</p>
             <p className="text-xs text-muted-foreground">
-              Attendance: {(liveEvent.current_attendance / 1000).toFixed(1)}K / {(liveEvent.expected_attendance / 1000).toFixed(0)}K — Venue data updating in real-time
+              Attendance: {(liveEvent.current_attendance / 1000).toFixed(1)}K / {(liveEvent.expected_attendance / 1000).toFixed(0)}K — Click any venue point and tap "Navigate" for optimized routing
             </p>
           </div>
         </div>
@@ -158,6 +173,19 @@ export const StadiumMapPage: React.FC = () => {
       {!liveEvent && (
         <div className="glass rounded-xl p-3 text-center">
           <p className="text-sm text-muted-foreground">No live event — showing default venue layout with static data</p>
+        </div>
+      )}
+
+      {/* Emergency Route Banner */}
+      {state.isEmergencyMode && (
+        <div className="glass rounded-xl p-3 border-destructive/50 bg-destructive/10 animate-pulse">
+          <div className="flex items-center gap-2">
+            <AlertTriangle className="w-5 h-5 text-destructive" />
+            <div>
+              <p className="text-sm font-bold text-destructive">🚨 EMERGENCY — Follow highlighted route to nearest exit</p>
+              <p className="text-xs text-muted-foreground">All other navigation disabled. Proceed calmly.</p>
+            </div>
+          </div>
         </div>
       )}
 
@@ -195,6 +223,31 @@ export const StadiumMapPage: React.FC = () => {
                 <animate attributeName="opacity" values="0.02;0.08;0.02" dur="2s" repeatCount="indefinite" />
               </rect>
             )}
+
+            {/* Crowd Heatmap overlay (subtle) */}
+            {liveEvent && entities.filter(e => e.crowdDensity === 'high').map(entity => (
+              <circle
+                key={`heat-${entity.id}`}
+                cx={entity.position.x}
+                cy={entity.position.y}
+                r="8"
+                fill="hsl(0,72%,51%)"
+                opacity="0.06"
+              />
+            ))}
+            {liveEvent && entities.filter(e => e.crowdDensity === 'medium').map(entity => (
+              <circle
+                key={`heat-${entity.id}`}
+                cx={entity.position.x}
+                cy={entity.position.y}
+                r="6"
+                fill="hsl(38,92%,50%)"
+                opacity="0.04"
+              />
+            ))}
+
+            {/* Route Overlay */}
+            <RouteOverlay route={activeRoute} userPosition={userPosition} showAlternate={showAlternateRoute} />
 
             {filtered.map(entity => {
               const isEmergencyExit = entity.type === 'emergency_exit';
@@ -250,61 +303,84 @@ export const StadiumMapPage: React.FC = () => {
         </div>
 
         {/* Details Panel */}
-        <div className="glass rounded-xl p-4 space-y-3">
-          <h3 className="font-display font-semibold text-sm text-muted-foreground uppercase tracking-wider">
-            {selected ? 'Details' : 'Select a Point'}
-          </h3>
-          {selected ? (
-            <div className="space-y-3 animate-fade-in">
-              <div className="flex items-center gap-2">
-                <span className="text-primary">{typeIcons[selected.type]}</span>
-                <h4 className="font-semibold">{selected.name}</h4>
-              </div>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Crowd</span>
-                  <CrowdBadge density={selected.crowdDensity} />
+        <div className="space-y-3">
+          {/* Route Info */}
+          {activeRoute && (
+            <RouteInfoPanel
+              route={activeRoute}
+              onSwitchToAlternate={handleSwitchToAlternate}
+              onClose={clearRoute}
+            />
+          )}
+
+          {/* Entity Details */}
+          <div className="glass rounded-xl p-4 space-y-3">
+            <h3 className="font-display font-semibold text-sm text-muted-foreground uppercase tracking-wider">
+              {selected ? 'Details' : 'Select a Point'}
+            </h3>
+            {selected ? (
+              <div className="space-y-3 animate-fade-in">
+                <div className="flex items-center gap-2">
+                  <span className="text-primary">{typeIcons[selected.type]}</span>
+                  <h4 className="font-semibold">{selected.name}</h4>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Wait Time</span>
-                  <span className="font-mono">{selected.estimatedWaitTime} min</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Distance</span>
-                  <span className="font-mono">{selected.distanceFromUser}m</span>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Crowd</span>
+                    <CrowdBadge density={selected.crowdDensity} />
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Wait Time</span>
+                    <span className="font-mono">{selected.estimatedWaitTime} min</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Distance</span>
+                    <span className="font-mono">{selected.distanceFromUser}m</span>
+                  </div>
+                  {selected.capacity && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Occupancy</span>
+                      <span className="font-mono">{selected.currentOccupancy}/{selected.capacity}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Status</span>
+                    <span className={selected.isAvailable ? 'text-secondary' : 'text-destructive'}>
+                      {selected.isAvailable ? 'Available' : 'Unavailable'}
+                    </span>
+                  </div>
                 </div>
                 {selected.capacity && (
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Occupancy</span>
-                    <span className="font-mono">{selected.currentOccupancy}/{selected.capacity}</span>
+                  <div className="pt-2">
+                    <div className="h-2 rounded-full bg-muted overflow-hidden">
+                      <div
+                        className={cn(
+                          'h-full rounded-full transition-all duration-500',
+                          selected.crowdDensity === 'low' && 'bg-secondary',
+                          selected.crowdDensity === 'medium' && 'bg-neon-amber',
+                          selected.crowdDensity === 'high' && 'bg-destructive',
+                        )}
+                        style={{ width: `${((selected.currentOccupancy || 0) / selected.capacity) * 100}%` }}
+                      />
+                    </div>
                   </div>
                 )}
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Status</span>
-                  <span className={selected.isAvailable ? 'text-secondary' : 'text-destructive'}>
-                    {selected.isAvailable ? 'Available' : 'Unavailable'}
-                  </span>
-                </div>
+
+                {/* Navigate Button */}
+                {!state.isEmergencyMode && (
+                  <button
+                    onClick={() => handleNavigateTo(selected)}
+                    className="w-full mt-2 flex items-center justify-center gap-2 px-3 py-2 rounded-lg gradient-primary text-primary-foreground text-sm font-medium transition-opacity hover:opacity-90"
+                  >
+                    <Navigation className="w-4 h-4" />
+                    Navigate Here
+                  </button>
+                )}
               </div>
-              {selected.capacity && (
-                <div className="pt-2">
-                  <div className="h-2 rounded-full bg-muted overflow-hidden">
-                    <div
-                      className={cn(
-                        'h-full rounded-full transition-all duration-500',
-                        selected.crowdDensity === 'low' && 'bg-secondary',
-                        selected.crowdDensity === 'medium' && 'bg-neon-amber',
-                        selected.crowdDensity === 'high' && 'bg-destructive',
-                      )}
-                      style={{ width: `${((selected.currentOccupancy || 0) / selected.capacity) * 100}%` }}
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">Click on any point on the map to see details about crowd density, wait times, and more.</p>
-          )}
+            ) : (
+              <p className="text-sm text-muted-foreground">Click on any point on the map to see details and get optimized route navigation.</p>
+            )}
+          </div>
         </div>
       </div>
     </div>
