@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { NavLink as RouterNavLink } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { 
@@ -6,6 +6,8 @@ import {
   Menu, X
 } from 'lucide-react';
 import { useStadium } from '@/contexts/StadiumContext';
+import { NotificationCenter } from '@/components/NotificationCenter';
+import { useSmartAlerts } from '@/hooks/useSmartAlerts';
 
 const navItems = [
   { to: '/', icon: MapPin, label: 'Stadiums' },
@@ -18,8 +20,24 @@ export const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children })
   const { state } = useStadium();
   const [mobileOpen, setMobileOpen] = React.useState(false);
 
+  // Smart alerts for public-facing notifications
+  const { alerts, unreadCount, markRead, markAllRead, clearAlerts } = useSmartAlerts(
+    state.entities,
+    0, // surge risk from context
+    state.isEmergencyMode,
+    true, // treat as live for demo
+  );
+
   return (
     <div className="min-h-screen flex flex-col">
+      {/* Emergency Public Banner */}
+      {state.isEmergencyMode && (
+        <div className="bg-destructive/90 text-destructive-foreground px-4 py-2 text-center text-sm font-medium z-[60] relative">
+          <span className="mr-2">🚨</span>
+          Emergency alert active. Please remain calm and proceed to the nearest exit. Follow on-screen directions.
+        </div>
+      )}
+
       {/* Top Bar */}
       <header className="h-14 glass-strong border-b border-border/30 flex items-center px-4 gap-4 z-50 sticky top-0">
         <button
@@ -40,15 +58,19 @@ export const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children })
           </h1>
         </div>
 
-        {state.isEmergencyMode && (
-          <div className="ml-auto flex items-center gap-2 px-3 py-1 rounded-full bg-destructive/20 border border-destructive/40 animate-pulse">
-            <AlertTriangle className="w-4 h-4 text-destructive" />
-            <span className="text-sm font-medium text-destructive">EMERGENCY MODE</span>
-          </div>
-        )}
+        <div className="ml-auto flex items-center gap-2">
+          {/* Notification Center */}
+          <NotificationCenter
+            alerts={alerts}
+            unreadCount={unreadCount}
+            onMarkRead={markRead}
+            onMarkAllRead={markAllRead}
+            onClear={clearAlerts}
+          />
 
-        <div className={cn("ml-auto text-xs text-muted-foreground hidden sm:block", state.isEmergencyMode && "ml-0")}>
-          National Stadium Intelligence
+          <div className="text-xs text-muted-foreground hidden sm:block">
+            National Stadium Intelligence
+          </div>
         </div>
       </header>
 

@@ -14,6 +14,46 @@ export const LANGUAGES: { code: SupportedLanguage; label: string }[] = [
   { code: 'ml-IN', label: 'മലയാളം (Malayalam)' },
 ];
 
+// Score voices for quality - prefer Google voices and female voices for clarity
+function scoreVoice(voice: SpeechSynthesisVoice, targetLang: string): number {
+  let score = 0;
+  const langBase = targetLang.split('-')[0];
+  
+  // Exact language match
+  if (voice.lang === targetLang) score += 100;
+  else if (voice.lang.startsWith(langBase)) score += 50;
+  else return 0; // No match at all
+  
+  // Prefer Google voices (much clearer for Indian languages)
+  if (voice.name.toLowerCase().includes('google')) score += 80;
+  
+  // Prefer Microsoft voices (also good quality)
+  if (voice.name.toLowerCase().includes('microsoft')) score += 60;
+  
+  // Prefer female voices for clarity (common naming patterns)
+  const femalePrefixes = ['female', 'woman', 'swara', 'priya', 'ananya', 'lakshmi', 'meera', 'zira', 'heera'];
+  if (femalePrefixes.some(p => voice.name.toLowerCase().includes(p))) score += 20;
+  
+  // Prefer non-default voices (usually better quality)
+  if (!voice.default) score += 5;
+  
+  // Prefer local voices over remote (less latency)
+  if (voice.localService) score += 10;
+  
+  return score;
+}
+
+function findBestVoice(voices: SpeechSynthesisVoice[], targetLang: string): SpeechSynthesisVoice | null {
+  if (voices.length === 0) return null;
+  
+  const scored = voices
+    .map(v => ({ voice: v, score: scoreVoice(v, targetLang) }))
+    .filter(v => v.score > 0)
+    .sort((a, b) => b.score - a.score);
+  
+  return scored.length > 0 ? scored[0].voice : null;
+}
+
 export function useVoice() {
   const [isListening, setIsListening] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -31,7 +71,6 @@ export function useVoice() {
       return;
     }
 
-    // Store callbacks in refs for stable access
     onResultRef.current = onResult;
     onErrorRef.current = onError || null;
 
@@ -39,10 +78,9 @@ export function useVoice() {
     recognition.lang = language;
     recognition.interimResults = false;
     recognition.maxAlternatives = 1;
-    recognition.continuous = true; // Keep listening
+    recognition.continuous = true;
 
     recognition.onresult = (event: any) => {
-      // Get the latest result
       const lastResult = event.results[event.results.length - 1];
       if (lastResult.isFinal) {
         const transcript = lastResult[0].transcript;
@@ -51,13 +89,8 @@ export function useVoice() {
     };
 
     recognition.onerror = (event: any) => {
-      if (event.error === 'no-speech') {
-        // Don't stop - just keep listening silently
-        return;
-      }
-      if (event.error === 'aborted') {
-        return; // User stopped
-      }
+      if (event.error === 'no-speech') return;
+      if (event.error === 'aborted') return;
       if (event.error === 'not-allowed') {
         onErrorRef.current?.('Microphone permission denied. Please allow microphone access in your browser settings.');
         shouldRestartRef.current = false;
@@ -68,12 +101,10 @@ export function useVoice() {
     };
 
     recognition.onend = () => {
-      // Auto-restart if we should still be listening
       if (shouldRestartRef.current) {
         try {
           recognition.start();
         } catch {
-          // If restart fails, stop
           shouldRestartRef.current = false;
           setIsListening(false);
         }
@@ -85,10 +116,8 @@ export function useVoice() {
     recognitionRef.current = recognition;
     shouldRestartRef.current = true;
 
-    // Request microphone first, then start recognition
     navigator.mediaDevices.getUserMedia({ audio: true })
       .then((stream) => {
-        // Got permission, release the stream (recognition uses its own)
         stream.getTracks().forEach(t => t.stop());
         try {
           recognition.start();
@@ -128,36 +157,62 @@ export function useVoice() {
       .replace(/\s+/g, ' ')
       .trim();
 
-    const utterance = new SpeechSynthesisUtterance(cleanText);
-    utterance.lang = language;
-    utterance.rate = 0.95;
-    utterance.pitch = 1;
-
-    // Try to find a voice matching the language
-    const voices = window.speechSynthesis.getVoices();
-    const matchingVoice = voices.find(v => v.lang === language) 
-      || voices.find(v => v.lang.startsWith(language.split('-')[0]));
-    if (matchingVoice) {
-      utterance.voice = matchingVoice;
-    }
+    // Split long text into chunks for better quality (max ~200 chars per chunk)
+    const chunks = splitTextForSpeech(cleanText);
     
-    utterance.onstart = () => setIsSpeaking(true);
-    utterance.onend = () => setIsSpeaking(false);
-    utterance.onerror = () => setIsSpeaking(false);
-
-    utteranceRef.current = utterance;
-    
-    // Voices may load async - wait a tick
-    if (voices.length === 0) {
-      window.speechSynthesis.onvoiceschanged = () => {
-        const v = window.speechSynthesis.getVoices();
-        const match = v.find(voice => voice.lang === language) 
-          || v.find(voice => voice.lang.startsWith(language.split('-')[0]));
-        if (match) utterance.voice = match;
+    const speakChunks = (voices: SpeechSynthesisVoice[]) => {
+      const bestVoice = findBestVoice(voices, language);
+      
+      let chunkIndex = 0;
+      const speakNext = () => {
+        if (chunkIndex >= chunks.length) {
+          setIsSpeaking(false);
+          return;
+        }
+        
+        const utterance = new SpeechSynthesisUtterance(chunks[chunkIndex]);
+        utterance.lang = language;
+        utterance.rate = 0.92;
+        utterance.pitch = 1.05;
+        
+        if (bestVoice) {
+          utterance.voice = bestVoice;
+        }
+        
+        if (chunkIndex === 0) {
+          utterance.onstart = () => setIsSpeaking(true);
+        }
+        
+        utterance.onend = () => {
+          chunkIndex++;
+          speakNext();
+        };
+        
+        utterance.onerror = (e) => {
+          // If a chunk fails, try the next one
+          console.warn('TTS chunk error:', e);
+          chunkIndex++;
+          if (chunkIndex >= chunks.length) {
+            setIsSpeaking(false);
+          } else {
+            speakNext();
+          }
+        };
+        
+        utteranceRef.current = utterance;
         window.speechSynthesis.speak(utterance);
       };
+      
+      speakNext();
+    };
+
+    const voices = window.speechSynthesis.getVoices();
+    if (voices.length === 0) {
+      window.speechSynthesis.onvoiceschanged = () => {
+        speakChunks(window.speechSynthesis.getVoices());
+      };
     } else {
-      window.speechSynthesis.speak(utterance);
+      speakChunks(voices);
     }
   }, [language]);
 
@@ -176,4 +231,26 @@ export function useVoice() {
     speak,
     stopSpeaking,
   };
+}
+
+// Split text at sentence boundaries for better TTS quality
+function splitTextForSpeech(text: string): string[] {
+  const sentences = text.match(/[^.!?।]+[.!?।]*/g) || [text];
+  const chunks: string[] = [];
+  let current = '';
+  
+  for (const sentence of sentences) {
+    if ((current + sentence).length > 200 && current.length > 0) {
+      chunks.push(current.trim());
+      current = sentence;
+    } else {
+      current += sentence;
+    }
+  }
+  
+  if (current.trim()) {
+    chunks.push(current.trim());
+  }
+  
+  return chunks.length > 0 ? chunks : [text];
 }

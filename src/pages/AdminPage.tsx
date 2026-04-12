@@ -9,7 +9,9 @@ import { AdminExecutiveSummary } from '@/components/AdminExecutiveSummary';
 import { AdminSurgePrediction } from '@/components/AdminSurgePrediction';
 import { AdminTrendChart } from '@/components/AdminTrendChart';
 import { AttendanceTrendChart } from '@/components/AttendanceTrendChart';
-import { Shield, AlertTriangle, Activity, LogOut, MapPin, Calendar, Siren, CheckCircle, FileText, Loader2 } from 'lucide-react';
+import { AdminBroadcastPanel } from '@/components/AdminBroadcastPanel';
+import { useSmartAlerts } from '@/hooks/useSmartAlerts';
+import { Shield, AlertTriangle, Activity, LogOut, MapPin, Calendar, Siren, CheckCircle, FileText, Loader2, Megaphone, Bell } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -54,6 +56,11 @@ export const AdminPage: React.FC = () => {
   const avgWaitTime = latestLog?.avg_wait_time || 0;
   const gateStatuses = (latestLog?.gate_statuses || {}) as Record<string, string>;
   const occupancyPct = liveEvent && stadium ? Math.round((liveEvent.current_attendance / stadium.capacity) * 100) : 0;
+
+  // Smart alerts for admin
+  const { alerts: smartAlerts, broadcastAlert } = useSmartAlerts(
+    venueEntities, surgeRisk, state.isEmergencyMode, !!liveEvent,
+  );
 
   // Emergency sound
   useEffect(() => {
@@ -358,7 +365,38 @@ export const AdminPage: React.FC = () => {
             </div>
           )}
 
-          {/* Venue Entity Controls */}
+          {/* Admin Broadcast Panel (LIVE only) */}
+          {liveEvent && (
+            <AdminBroadcastPanel onBroadcast={broadcastAlert} />
+          )}
+
+          {/* Notification Stats */}
+          {smartAlerts.length > 0 && (
+            <div className="glass rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Bell className="w-4 h-4 text-primary" />
+                <h3 className="font-semibold text-sm">Alert Analytics</h3>
+              </div>
+              <div className="grid grid-cols-3 gap-3 text-center text-xs">
+                <div>
+                  <p className="font-mono text-lg font-bold text-foreground">{smartAlerts.length}</p>
+                  <p className="text-muted-foreground">Total Alerts</p>
+                </div>
+                <div>
+                  <p className="font-mono text-lg font-bold text-destructive">
+                    {smartAlerts.filter(a => a.severity === 'critical').length}
+                  </p>
+                  <p className="text-muted-foreground">Critical</p>
+                </div>
+                <div>
+                  <p className="font-mono text-lg font-bold text-neon-amber">
+                    {smartAlerts.filter(a => a.severity === 'warning').length}
+                  </p>
+                  <p className="text-muted-foreground">Warnings</p>
+                </div>
+              </div>
+            </div>
+          )}
           {liveEvent && venueEntities.length > 0 && (
             <>
               <h3 className="text-sm font-semibold flex items-center gap-2">
