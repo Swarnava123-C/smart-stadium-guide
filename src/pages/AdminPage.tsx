@@ -49,6 +49,11 @@ export const AdminPage: React.FC = () => {
         .filter(e => e.type !== 'seat_block' && e.type !== 'emergency_exit')
     : [];
 
+  // Smart alerts for admin
+  const { alerts: smartAlerts, broadcastAlert } = useSmartAlerts(
+    venueEntities, surgeRisk, state.isEmergencyMode, !!liveEvent,
+  );
+
   // Latest log metrics
   const latestLog = attendanceLogs.length > 0 ? attendanceLogs[attendanceLogs.length - 1] : null;
   const surgeRisk = latestLog?.surge_risk_score || 0;
