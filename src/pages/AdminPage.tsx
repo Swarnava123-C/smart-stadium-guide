@@ -49,11 +49,6 @@ export const AdminPage: React.FC = () => {
         .filter(e => e.type !== 'seat_block' && e.type !== 'emergency_exit')
     : [];
 
-  // Smart alerts for admin
-  const { alerts: smartAlerts, broadcastAlert } = useSmartAlerts(
-    venueEntities, surgeRisk, state.isEmergencyMode, !!liveEvent,
-  );
-
   // Latest log metrics
   const latestLog = attendanceLogs.length > 0 ? attendanceLogs[attendanceLogs.length - 1] : null;
   const surgeRisk = latestLog?.surge_risk_score || 0;
@@ -61,6 +56,11 @@ export const AdminPage: React.FC = () => {
   const avgWaitTime = latestLog?.avg_wait_time || 0;
   const gateStatuses = (latestLog?.gate_statuses || {}) as Record<string, string>;
   const occupancyPct = liveEvent && stadium ? Math.round((liveEvent.current_attendance / stadium.capacity) * 100) : 0;
+
+  // Smart alerts for admin
+  const { alerts: smartAlerts, broadcastAlert } = useSmartAlerts(
+    venueEntities, surgeRisk, state.isEmergencyMode, !!liveEvent,
+  );
 
   // Emergency sound
   useEffect(() => {
