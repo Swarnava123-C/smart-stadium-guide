@@ -59,6 +59,7 @@ export type Database = {
         Row: {
           created_at: string
           current_attendance: number
+          end_time: string
           event_date: string
           event_name: string
           expected_attendance: number
@@ -71,6 +72,7 @@ export type Database = {
         Insert: {
           created_at?: string
           current_attendance?: number
+          end_time: string
           event_date: string
           event_name: string
           expected_attendance: number
@@ -83,6 +85,7 @@ export type Database = {
         Update: {
           created_at?: string
           current_attendance?: number
+          end_time?: string
           event_date?: string
           event_name?: string
           expected_attendance?: number
