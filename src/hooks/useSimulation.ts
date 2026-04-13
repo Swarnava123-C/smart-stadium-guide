@@ -9,8 +9,10 @@ import { resolveEventStatus } from '@/utils/eventStatusResolver';
  * 2. Logs attendance data periodically
  * 3. Updates stadium crowd status
  * 
- * NOTE: Status transitions are handled by eventStatusResolver — this hook
- * only drives the attendance simulation for currently-live events.
+ * GUARD: Only runs for events that are:
+ * - Dynamically resolved as 'live'
+ * - NOT locked (is_locked === false)
+ * - NOT paused (is_paused === false)
  */
 export function useSimulation(events: StadiumEvent[], isEmergencyMode: boolean) {
   const intervalRef = useRef<ReturnType<typeof setInterval>>();
@@ -20,8 +22,17 @@ export function useSimulation(events: StadiumEvent[], isEmergencyMode: boolean) 
 
     const tick = async () => {
       for (const event of events) {
+        // Simulation guard: skip locked or paused events
+        if ((event as any).is_locked || (event as any).is_paused) continue;
+
         // Always use dynamic status resolution
-        const currentStatus = resolveEventStatus(event.event_date, event.end_time);
+        const currentStatus = resolveEventStatus(event.event_date, event.end_time, undefined, {
+          isPaused: (event as any).is_paused,
+          overtimeActive: (event as any).overtime_active,
+          overtimeMinutesAdded: (event as any).overtime_minutes_added,
+          delayTotalMinutes: (event as any).delay_total_minutes,
+          isLocked: (event as any).is_locked,
+        });
 
         // Only simulate live events
         if (currentStatus !== 'live') continue;

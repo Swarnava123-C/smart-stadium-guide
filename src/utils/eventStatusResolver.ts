@@ -15,6 +15,11 @@ const EVENT_DURATION_BUFFER_MS = 30 * 60 * 1000; // 30-minute buffer for delays/
 export interface EventWithTimes {
   event_date: string;   // start time (ISO)
   end_time: string;     // end time (ISO)
+  is_paused?: boolean;
+  overtime_active?: boolean;
+  overtime_minutes_added?: number;
+  delay_total_minutes?: number;
+  is_locked?: boolean;
   [key: string]: any;
 }
 
@@ -24,20 +29,40 @@ export type ResolvedEvent<T extends EventWithTimes> = Omit<T, 'status'> & {
 
 /**
  * Resolve a single event's status from current time.
- * Uses server time if available, falls back to client time.
+ * Respects paused state, overtime extensions, and delay buffers.
  */
 export function resolveEventStatus(
   startTime: string,
   endTime: string,
-  now?: Date
+  now?: Date,
+  options?: {
+    isPaused?: boolean;
+    overtimeActive?: boolean;
+    overtimeMinutesAdded?: number;
+    delayTotalMinutes?: number;
+    isLocked?: boolean;
+  }
 ): ResolvedEventStatus {
+  // If locked, it's completed regardless
+  if (options?.isLocked) return 'completed';
+
   const currentTime = now || new Date();
   const start = new Date(startTime);
   const end = new Date(endTime);
-  // Add buffer to end time for delays/extra overs/ceremonies
-  const bufferedEnd = new Date(end.getTime() + EVENT_DURATION_BUFFER_MS);
+  
+  // Calculate total buffer: base + overtime + delay
+  const overtimeMs = (options?.overtimeMinutesAdded || 0) * 60 * 1000;
+  const delayMs = (options?.delayTotalMinutes || 0) * 60 * 1000;
+  const totalBuffer = EVENT_DURATION_BUFFER_MS + overtimeMs + delayMs;
+  const bufferedEnd = new Date(end.getTime() + totalBuffer);
 
   if (currentTime < start) return 'upcoming';
+  
+  // If paused or overtime active, keep as live even past buffered end
+  if (options?.isPaused || options?.overtimeActive) {
+    if (currentTime >= start) return 'live';
+  }
+  
   if (currentTime >= start && currentTime <= bufferedEnd) return 'live';
   return 'completed';
 }
@@ -53,6 +78,12 @@ export function resolveAllEvents<T extends EventWithTimes>(
   const currentTime = now || new Date();
   return events.map(event => ({
     ...event,
-    status: resolveEventStatus(event.event_date, event.end_time, currentTime),
+    status: resolveEventStatus(event.event_date, event.end_time, currentTime, {
+      isPaused: event.is_paused,
+      overtimeActive: event.overtime_active,
+      overtimeMinutesAdded: event.overtime_minutes_added,
+      delayTotalMinutes: event.delay_total_minutes,
+      isLocked: event.is_locked,
+    }),
   }));
 }
