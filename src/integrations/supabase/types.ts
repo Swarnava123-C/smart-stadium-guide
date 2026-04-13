@@ -55,15 +55,159 @@ export type Database = {
           },
         ]
       }
+      compliance_audit_log: {
+        Row: {
+          created_at: string
+          details: string | null
+          event_id: string
+          id: string
+          resolved: boolean
+          severity: string
+          violation_type: string
+        }
+        Insert: {
+          created_at?: string
+          details?: string | null
+          event_id: string
+          id?: string
+          resolved?: boolean
+          severity?: string
+          violation_type: string
+        }
+        Update: {
+          created_at?: string
+          details?: string | null
+          event_id?: string
+          id?: string
+          resolved?: boolean
+          severity?: string
+          violation_type?: string
+        }
+        Relationships: []
+      }
+      evacuation_logs: {
+        Row: {
+          congestion_score: number
+          created_at: string
+          event_id: string
+          flow_rate_per_minute: number
+          id: string
+          people_remaining: number
+          zone_id: string
+        }
+        Insert: {
+          congestion_score?: number
+          created_at?: string
+          event_id: string
+          flow_rate_per_minute?: number
+          id?: string
+          people_remaining?: number
+          zone_id: string
+        }
+        Update: {
+          congestion_score?: number
+          created_at?: string
+          event_id?: string
+          flow_rate_per_minute?: number
+          id?: string
+          people_remaining?: number
+          zone_id?: string
+        }
+        Relationships: []
+      }
+      event_daily_snapshots: {
+        Row: {
+          archived_at: string
+          attendance: number
+          avg_wait: number
+          day_number: number
+          event_id: string
+          id: string
+          incidents: number
+          peak_surge: number
+        }
+        Insert: {
+          archived_at?: string
+          attendance?: number
+          avg_wait?: number
+          day_number: number
+          event_id: string
+          id?: string
+          incidents?: number
+          peak_surge?: number
+        }
+        Update: {
+          archived_at?: string
+          attendance?: number
+          avg_wait?: number
+          day_number?: number
+          event_id?: string
+          id?: string
+          incidents?: number
+          peak_surge?: number
+        }
+        Relationships: []
+      }
+      event_snapshots: {
+        Row: {
+          archived_at: string
+          avg_wait_time: number
+          event_id: string
+          final_attendance: number
+          id: string
+          incident_count: number
+          peak_attendance: number
+          peak_surge_risk: number
+          revenue_estimate: number
+        }
+        Insert: {
+          archived_at?: string
+          avg_wait_time?: number
+          event_id: string
+          final_attendance?: number
+          id?: string
+          incident_count?: number
+          peak_attendance?: number
+          peak_surge_risk?: number
+          revenue_estimate?: number
+        }
+        Update: {
+          archived_at?: string
+          avg_wait_time?: number
+          event_id?: string
+          final_attendance?: number
+          id?: string
+          incident_count?: number
+          peak_attendance?: number
+          peak_surge_risk?: number
+          revenue_estimate?: number
+        }
+        Relationships: []
+      }
       events: {
         Row: {
           created_at: string
           current_attendance: number
+          current_day_number: number
+          delay_started_at: string | null
+          delay_status: Database["public"]["Enums"]["delay_status"]
+          delay_total_minutes: number
           end_time: string
+          evacuation_estimated_completion: string | null
+          evacuation_mode: boolean
+          evacuation_started_at: string | null
           event_date: string
+          event_end_date: string | null
           event_name: string
           expected_attendance: number
           id: string
+          is_locked: boolean
+          is_multi_day: boolean
+          is_paused: boolean
+          lifecycle_state: Database["public"]["Enums"]["lifecycle_state"]
+          overtime_active: boolean
+          overtime_minutes_added: number
+          overtime_reason: Database["public"]["Enums"]["overtime_reason"] | null
           risk_score: number | null
           stadium_id: string
           status: Database["public"]["Enums"]["event_status"]
@@ -72,11 +216,28 @@ export type Database = {
         Insert: {
           created_at?: string
           current_attendance?: number
+          current_day_number?: number
+          delay_started_at?: string | null
+          delay_status?: Database["public"]["Enums"]["delay_status"]
+          delay_total_minutes?: number
           end_time: string
+          evacuation_estimated_completion?: string | null
+          evacuation_mode?: boolean
+          evacuation_started_at?: string | null
           event_date: string
+          event_end_date?: string | null
           event_name: string
           expected_attendance: number
           id?: string
+          is_locked?: boolean
+          is_multi_day?: boolean
+          is_paused?: boolean
+          lifecycle_state?: Database["public"]["Enums"]["lifecycle_state"]
+          overtime_active?: boolean
+          overtime_minutes_added?: number
+          overtime_reason?:
+            | Database["public"]["Enums"]["overtime_reason"]
+            | null
           risk_score?: number | null
           stadium_id: string
           status?: Database["public"]["Enums"]["event_status"]
@@ -85,11 +246,28 @@ export type Database = {
         Update: {
           created_at?: string
           current_attendance?: number
+          current_day_number?: number
+          delay_started_at?: string | null
+          delay_status?: Database["public"]["Enums"]["delay_status"]
+          delay_total_minutes?: number
           end_time?: string
+          evacuation_estimated_completion?: string | null
+          evacuation_mode?: boolean
+          evacuation_started_at?: string | null
           event_date?: string
+          event_end_date?: string | null
           event_name?: string
           expected_attendance?: number
           id?: string
+          is_locked?: boolean
+          is_multi_day?: boolean
+          is_paused?: boolean
+          lifecycle_state?: Database["public"]["Enums"]["lifecycle_state"]
+          overtime_active?: boolean
+          overtime_minutes_added?: number
+          overtime_reason?:
+            | Database["public"]["Enums"]["overtime_reason"]
+            | null
           risk_score?: number | null
           stadium_id?: string
           status?: Database["public"]["Enums"]["event_status"]
@@ -104,6 +282,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      iot_stream: {
+        Row: {
+          confidence_score: number
+          created_at: string
+          id: string
+          sensor_type: string
+          stadium_id: string
+          value: number
+          zone_id: string
+        }
+        Insert: {
+          confidence_score?: number
+          created_at?: string
+          id?: string
+          sensor_type: string
+          stadium_id: string
+          value?: number
+          zone_id: string
+        }
+        Update: {
+          confidence_score?: number
+          created_at?: string
+          id?: string
+          sensor_type?: string
+          stadium_id?: string
+          value?: number
+          zone_id?: string
+        }
+        Relationships: []
       }
       stadiums: {
         Row: {
@@ -184,7 +392,10 @@ export type Database = {
     Enums: {
       app_role: "admin" | "moderator" | "user"
       crowd_status: "low" | "medium" | "high"
+      delay_status: "none" | "weather" | "technical" | "security"
       event_status: "upcoming" | "live" | "completed"
+      lifecycle_state: "scheduled" | "active" | "finalizing" | "archived"
+      overtime_reason: "super_over" | "tie_break" | "ceremony_extension"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -314,7 +525,10 @@ export const Constants = {
     Enums: {
       app_role: ["admin", "moderator", "user"],
       crowd_status: ["low", "medium", "high"],
+      delay_status: ["none", "weather", "technical", "security"],
       event_status: ["upcoming", "live", "completed"],
+      lifecycle_state: ["scheduled", "active", "finalizing", "archived"],
+      overtime_reason: ["super_over", "tie_break", "ceremony_extension"],
     },
   },
 } as const
