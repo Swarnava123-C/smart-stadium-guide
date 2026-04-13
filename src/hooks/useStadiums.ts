@@ -24,6 +24,26 @@ export interface StadiumEvent {
   current_attendance: number;
   status: 'upcoming' | 'live' | 'completed';
   risk_score: number | null;
+  // Delay fields
+  delay_status: 'none' | 'weather' | 'technical' | 'security';
+  delay_started_at: string | null;
+  delay_total_minutes: number;
+  is_paused: boolean;
+  // Overtime fields
+  overtime_active: boolean;
+  overtime_reason: string | null;
+  overtime_minutes_added: number;
+  // Multi-day fields
+  is_multi_day: boolean;
+  event_end_date: string | null;
+  current_day_number: number;
+  // Evacuation fields
+  evacuation_mode: boolean;
+  evacuation_started_at: string | null;
+  evacuation_estimated_completion: string | null;
+  // Lifecycle fields
+  is_locked: boolean;
+  lifecycle_state: 'scheduled' | 'active' | 'finalizing' | 'archived';
 }
 
 export interface AttendanceLog {
