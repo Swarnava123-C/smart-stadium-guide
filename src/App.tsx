@@ -10,6 +10,7 @@ import { AIAssistantPage } from "@/pages/AssistantPage";
 import { StadiumMapPage } from "@/pages/MapPage";
 import { AdminPage } from "@/pages/AdminPage";
 import { EventDetailPage } from "@/pages/EventDetailPage";
+import { NationalCommandPage } from "@/pages/NationalCommandPage";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -29,6 +30,7 @@ const App = () => (
               <Route path="/venue-map/:id" element={<StadiumMapPage />} />
               <Route path="/event/:eventId" element={<EventDetailPage />} />
               <Route path="/admin" element={<AdminPage />} />
+              <Route path="/national" element={<NationalCommandPage />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </AppLayout>
