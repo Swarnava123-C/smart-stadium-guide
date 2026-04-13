@@ -18,9 +18,9 @@ export interface EventWithTimes {
   [key: string]: any;
 }
 
-export interface ResolvedEvent<T extends EventWithTimes> extends Omit<T, 'status'> {
+export type ResolvedEvent<T extends EventWithTimes> = Omit<T, 'status'> & {
   status: ResolvedEventStatus;
-}
+};
 
 /**
  * Resolve a single event's status from current time.
