@@ -3,7 +3,7 @@ import { NavLink as RouterNavLink } from 'react-router-dom';
 import { cn } from '@/lib/utils';
 import { 
   MapPin, MessageSquare, Map, Shield, AlertTriangle,
-  Menu, X
+  Menu, X, Globe
 } from 'lucide-react';
 import { useStadium } from '@/contexts/StadiumContext';
 import { NotificationCenter } from '@/components/NotificationCenter';
@@ -14,6 +14,7 @@ const navItems = [
   { to: '/assistant', icon: MessageSquare, label: 'AI Assistant' },
   { to: '/venue-map', icon: Map, label: 'Venue Map' },
   { to: '/admin', icon: Shield, label: 'Admin' },
+  { to: '/national', icon: Globe, label: 'Command Center' },
 ];
 
 export const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
