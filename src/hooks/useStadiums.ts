@@ -1,5 +1,6 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { resolveAllEvents } from '@/utils/eventStatusResolver';
 
 export interface Stadium {
   id: string;
@@ -18,6 +19,7 @@ export interface StadiumEvent {
   stadium_id: string;
   event_name: string;
   event_date: string;
+  end_time: string;
   expected_attendance: number;
   current_attendance: number;
   status: 'upcoming' | 'live' | 'completed';
@@ -53,9 +55,11 @@ export function useStadiums() {
 
 export function useStadiumDetail(stadiumId: string | undefined) {
   const [stadium, setStadium] = useState<Stadium | null>(null);
+  const [rawEvents, setRawEvents] = useState<StadiumEvent[]>([]);
   const [events, setEvents] = useState<StadiumEvent[]>([]);
   const [logs, setLogs] = useState<AttendanceLog[]>([]);
   const [loading, setLoading] = useState(true);
+  const pollRef = useRef<ReturnType<typeof setInterval>>();
 
   const fetchData = useCallback(async () => {
     if (!stadiumId) return;
@@ -68,10 +72,13 @@ export function useStadiumDetail(stadiumId: string | undefined) {
     if (stadiumRes.data) setStadium(stadiumRes.data as unknown as Stadium);
     if (eventsRes.data) {
       const evts = eventsRes.data as unknown as StadiumEvent[];
-      setEvents(evts);
+      setRawEvents(evts);
+      // Resolve status dynamically
+      const resolved = resolveAllEvents(evts) as StadiumEvent[];
+      setEvents(resolved);
       
       // Fetch attendance logs for live events
-      const liveEvent = evts.find(e => e.status === 'live');
+      const liveEvent = resolved.find(e => e.status === 'live');
       if (liveEvent) {
         const { data: logData } = await supabase
           .from('attendance_logs')
@@ -89,7 +96,18 @@ export function useStadiumDetail(stadiumId: string | undefined) {
     fetchData();
   }, [fetchData]);
 
-  // Subscribe to realtime updates for events and logs
+  // Re-resolve status every 60 seconds (handles upcoming→live→completed transitions)
+  useEffect(() => {
+    pollRef.current = setInterval(() => {
+      if (rawEvents.length > 0) {
+        const resolved = resolveAllEvents(rawEvents) as StadiumEvent[];
+        setEvents(resolved);
+      }
+    }, 60000);
+    return () => { if (pollRef.current) clearInterval(pollRef.current); };
+  }, [rawEvents]);
+
+  // Subscribe to realtime updates
   useEffect(() => {
     if (!stadiumId) return;
 
@@ -98,10 +116,12 @@ export function useStadiumDetail(stadiumId: string | undefined) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'events' }, (payload) => {
         const updated = payload.new as unknown as StadiumEvent;
         if (updated.stadium_id === stadiumId) {
-          setEvents(prev => {
-            const idx = prev.findIndex(e => e.id === updated.id);
-            if (idx >= 0) return prev.map(e => e.id === updated.id ? updated : e);
-            return [updated, ...prev];
+          setRawEvents(prev => {
+            const newList = prev.map(e => e.id === updated.id ? updated : e);
+            if (!prev.find(e => e.id === updated.id)) newList.unshift(updated);
+            const resolved = resolveAllEvents(newList) as StadiumEvent[];
+            setEvents(resolved);
+            return newList;
           });
         }
       })
@@ -111,7 +131,6 @@ export function useStadiumDetail(stadiumId: string | undefined) {
       .channel(`logs-${stadiumId}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'attendance_logs' }, (payload) => {
         const newLog = payload.new as unknown as AttendanceLog;
-        // Check if this log belongs to a live event of this stadium
         setLogs(prev => [...prev, newLog]);
       })
       .subscribe();
