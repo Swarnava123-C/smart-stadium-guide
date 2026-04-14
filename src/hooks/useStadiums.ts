@@ -64,26 +64,6 @@ export interface EventSnapshot {
   archived_at: string;
 }
 
-const MAX_RETRIES = 3;
-const RETRY_DELAY = 1000;
-
-async function fetchWithRetry<T>(fn: () => Promise<{ data: T | null; error: any }>, retries = MAX_RETRIES): Promise<T | null> {
-  for (let i = 0; i < retries; i++) {
-    try {
-      const { data, error } = await fn();
-      if (error) throw error;
-      return data;
-    } catch (err) {
-      if (i < retries - 1) {
-        await new Promise(r => setTimeout(r, RETRY_DELAY * Math.pow(2, i)));
-      } else {
-        console.warn('[useStadiums] Fetch failed after retries:', err);
-        return null;
-      }
-    }
-  }
-  return null;
-}
 
 export function useStadiums() {
   const [stadiums, setStadiums] = useState<Stadium[]>([]);
