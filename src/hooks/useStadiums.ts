@@ -90,12 +90,16 @@ export function useStadiums() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetch = async () => {
-      const data = await fetchWithRetry(() => supabase.from('stadiums').select('*'));
-      if (data) setStadiums(data as unknown as Stadium[]);
+    const doFetch = async () => {
+      try {
+        const { data } = await supabase.from('stadiums').select('*');
+        if (data) setStadiums(data as unknown as Stadium[]);
+      } catch (err) {
+        console.warn('[useStadiums] Fetch failed:', err);
+      }
       setLoading(false);
     };
-    fetch();
+    doFetch();
   }, []);
 
   return { stadiums, loading };
