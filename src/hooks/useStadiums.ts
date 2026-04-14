@@ -24,24 +24,19 @@ export interface StadiumEvent {
   current_attendance: number;
   status: 'upcoming' | 'live' | 'completed';
   risk_score: number | null;
-  // Delay fields
   delay_status: 'none' | 'weather' | 'technical' | 'security';
   delay_started_at: string | null;
   delay_total_minutes: number;
   is_paused: boolean;
-  // Overtime fields
   overtime_active: boolean;
   overtime_reason: string | null;
   overtime_minutes_added: number;
-  // Multi-day fields
   is_multi_day: boolean;
   event_end_date: string | null;
   current_day_number: number;
-  // Evacuation fields
   evacuation_mode: boolean;
   evacuation_started_at: string | null;
   evacuation_estimated_completion: string | null;
-  // Lifecycle fields
   is_locked: boolean;
   lifecycle_state: 'scheduled' | 'active' | 'finalizing' | 'archived';
 }
@@ -57,13 +52,46 @@ export interface AttendanceLog {
   created_at: string;
 }
 
+export interface EventSnapshot {
+  id: string;
+  event_id: string;
+  final_attendance: number;
+  peak_attendance: number;
+  avg_wait_time: number;
+  peak_surge_risk: number;
+  incident_count: number;
+  revenue_estimate: number;
+  archived_at: string;
+}
+
+const MAX_RETRIES = 3;
+const RETRY_DELAY = 1000;
+
+async function fetchWithRetry<T>(fn: () => Promise<{ data: T | null; error: any }>, retries = MAX_RETRIES): Promise<T | null> {
+  for (let i = 0; i < retries; i++) {
+    try {
+      const { data, error } = await fn();
+      if (error) throw error;
+      return data;
+    } catch (err) {
+      if (i < retries - 1) {
+        await new Promise(r => setTimeout(r, RETRY_DELAY * Math.pow(2, i)));
+      } else {
+        console.warn('[useStadiums] Fetch failed after retries:', err);
+        return null;
+      }
+    }
+  }
+  return null;
+}
+
 export function useStadiums() {
   const [stadiums, setStadiums] = useState<Stadium[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetch = async () => {
-      const { data } = await supabase.from('stadiums').select('*');
+      const data = await fetchWithRetry(() => supabase.from('stadiums').select('*'));
       if (data) setStadiums(data as unknown as Stadium[]);
       setLoading(false);
     };
@@ -78,56 +106,78 @@ export function useStadiumDetail(stadiumId: string | undefined) {
   const [rawEvents, setRawEvents] = useState<StadiumEvent[]>([]);
   const [events, setEvents] = useState<StadiumEvent[]>([]);
   const [logs, setLogs] = useState<AttendanceLog[]>([]);
+  const [snapshots, setSnapshots] = useState<EventSnapshot[]>([]);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval>>();
 
   const fetchData = useCallback(async () => {
     if (!stadiumId) return;
-    
-    const [stadiumRes, eventsRes] = await Promise.all([
-      supabase.from('stadiums').select('*').eq('id', stadiumId).single(),
-      supabase.from('events').select('*').eq('stadium_id', stadiumId).order('event_date', { ascending: false }),
-    ]);
+    setSyncing(true);
 
-    if (stadiumRes.data) setStadium(stadiumRes.data as unknown as Stadium);
-    if (eventsRes.data) {
-      const evts = eventsRes.data as unknown as StadiumEvent[];
-      setRawEvents(evts);
-      // Resolve status dynamically
-      const resolved = resolveAllEvents(evts) as StadiumEvent[];
-      setEvents(resolved);
-      
-      // Fetch attendance logs for live events
-      const liveEvent = resolved.find(e => e.status === 'live');
-      if (liveEvent) {
-        const { data: logData } = await supabase
-          .from('attendance_logs')
-          .select('*')
-          .eq('event_id', liveEvent.id)
-          .order('created_at', { ascending: true })
-          .limit(100);
-        if (logData) setLogs(logData as unknown as AttendanceLog[]);
+    try {
+      const [stadiumRes, eventsRes] = await Promise.all([
+        supabase.from('stadiums').select('*').eq('id', stadiumId).single(),
+        supabase.from('events').select('*').eq('stadium_id', stadiumId).order('event_date', { ascending: false }),
+      ]);
+
+      if (stadiumRes.data) setStadium(stadiumRes.data as unknown as Stadium);
+      if (eventsRes.data) {
+        const evts = eventsRes.data as unknown as StadiumEvent[];
+        setRawEvents(evts);
+        const resolved = resolveAllEvents(evts) as StadiumEvent[];
+        setEvents(resolved);
+
+        // Fetch attendance logs for active event (live or most recent completed with data)
+        const liveEvent = resolved.find(e => e.status === 'live');
+        const targetEvent = liveEvent || resolved.find(e => e.status === 'completed');
+
+        if (targetEvent) {
+          const { data: logData } = await supabase
+            .from('attendance_logs')
+            .select('*')
+            .eq('event_id', targetEvent.id)
+            .order('created_at', { ascending: true })
+            .limit(200);
+          if (logData) setLogs(logData as unknown as AttendanceLog[]);
+        }
+
+        // Fetch snapshots for all completed events
+        const completedIds = resolved.filter(e => e.status === 'completed').map(e => e.id);
+        if (completedIds.length > 0) {
+          const { data: snapData } = await supabase
+            .from('event_snapshots')
+            .select('*')
+            .in('event_id', completedIds);
+          if (snapData) setSnapshots(snapData as unknown as EventSnapshot[]);
+        }
       }
+    } catch (err) {
+      console.warn('[useStadiumDetail] Fetch error, will retry:', err);
     }
+
     setLoading(false);
+    setSyncing(false);
   }, [stadiumId]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
 
-  // Re-resolve status every 60 seconds (handles upcoming→live→completed transitions)
+  // Re-resolve status every 60 seconds
   useEffect(() => {
     pollRef.current = setInterval(() => {
       if (rawEvents.length > 0) {
         const resolved = resolveAllEvents(rawEvents) as StadiumEvent[];
         setEvents(resolved);
       }
+      // Refetch data every 60s for live updates
+      fetchData();
     }, 60000);
     return () => { if (pollRef.current) clearInterval(pollRef.current); };
-  }, [rawEvents]);
+  }, [rawEvents, fetchData]);
 
-  // Subscribe to realtime updates
+  // Realtime subscriptions with auto-reconnect
   useEffect(() => {
     if (!stadiumId) return;
 
@@ -151,7 +201,7 @@ export function useStadiumDetail(stadiumId: string | undefined) {
       .channel(`logs-${stadiumId}`)
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'attendance_logs' }, (payload) => {
         const newLog = payload.new as unknown as AttendanceLog;
-        setLogs(prev => [...prev, newLog]);
+        setLogs(prev => [...prev.slice(-199), newLog]); // Keep last 200
       })
       .subscribe();
 
@@ -161,5 +211,5 @@ export function useStadiumDetail(stadiumId: string | undefined) {
     };
   }, [stadiumId]);
 
-  return { stadium, events, logs, loading, refetch: fetchData };
+  return { stadium, events, logs, snapshots, loading, syncing, refetch: fetchData };
 }
