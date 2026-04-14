@@ -618,6 +618,7 @@ export const AdminPage: React.FC = () => {
             <StadiumHeatmap entities={allVenueEntities} currentAttendance={liveEvent.current_attendance} capacity={stadium.capacity} />
           )}
 
+          {isPast && (
             <div className="glass rounded-xl p-4 text-center">
               <p className="text-sm text-muted-foreground">No live or upcoming events. Historical data is read-only.</p>
             </div>
