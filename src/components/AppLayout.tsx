@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { NavLink as RouterNavLink } from 'react-router-dom';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { cn } from '@/lib/utils';
 import { 
   MapPin, MessageSquare, Map, Shield, AlertTriangle,
@@ -119,7 +120,9 @@ export const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children })
 
         {/* Main Content */}
         <main className="flex-1 p-4 md:p-6 overflow-auto" role="main">
-          {children}
+          <ErrorBoundary fallbackTitle="This section encountered an error">
+            {children}
+          </ErrorBoundary>
         </main>
       </div>
     </div>
