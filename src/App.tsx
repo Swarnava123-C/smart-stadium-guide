@@ -11,6 +11,7 @@ import { StadiumMapPage } from "@/pages/MapPage";
 import { AdminPage } from "@/pages/AdminPage";
 import { EventDetailPage } from "@/pages/EventDetailPage";
 import { NationalCommandPage } from "@/pages/NationalCommandPage";
+import { ArchitecturePage } from "@/pages/ArchitecturePage";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -31,6 +32,7 @@ const App = () => (
               <Route path="/event/:eventId" element={<EventDetailPage />} />
               <Route path="/admin" element={<AdminPage />} />
               <Route path="/national" element={<NationalCommandPage />} />
+              <Route path="/architecture" element={<ArchitecturePage />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </AppLayout>
