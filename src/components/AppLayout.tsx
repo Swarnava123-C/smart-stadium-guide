@@ -1,9 +1,10 @@
 import React, { useMemo } from 'react';
 import { NavLink as RouterNavLink } from 'react-router-dom';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { cn } from '@/lib/utils';
 import { 
   MapPin, MessageSquare, Map, Shield, AlertTriangle,
-  Menu, X, Globe
+  Menu, X, Globe, BookOpen
 } from 'lucide-react';
 import { useStadium } from '@/contexts/StadiumContext';
 import { NotificationCenter } from '@/components/NotificationCenter';
@@ -15,6 +16,7 @@ const navItems = [
   { to: '/venue-map', icon: Map, label: 'Venue Map' },
   { to: '/admin', icon: Shield, label: 'Admin' },
   { to: '/national', icon: Globe, label: 'Command Center' },
+  { to: '/architecture', icon: BookOpen, label: 'Architecture' },
 ];
 
 export const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -118,7 +120,9 @@ export const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children })
 
         {/* Main Content */}
         <main className="flex-1 p-4 md:p-6 overflow-auto" role="main">
-          {children}
+          <ErrorBoundary fallbackTitle="This section encountered an error">
+            {children}
+          </ErrorBoundary>
         </main>
       </div>
     </div>
