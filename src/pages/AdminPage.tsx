@@ -89,6 +89,16 @@ export const AdminPage: React.FC = () => {
   // IoT Sensor Fusion
   const { fusedDensities, sensorHealth, simulateIoTData } = useIoTSensorFusion(selectedStadiumId || undefined);
 
+  // CV Crowd Analytics
+  const { analytics: visionAnalytics } = useCrowdVision(allVenueEntities, !!liveEvent);
+
+  // Compliance Audit
+  const { violations, metrics: complianceMetrics, resolveViolation } = useComplianceAudit(
+    liveEvent?.id,
+    liveEvent?.current_attendance,
+    stadium?.capacity,
+  );
+
   // Gate recommendation
   const gateRecommendation = getOptimalGateRecommendation();
 
