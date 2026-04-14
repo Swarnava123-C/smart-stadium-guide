@@ -605,7 +605,19 @@ export const AdminPage: React.FC = () => {
             </div>
           )}
 
-          {isPast && (
+          {/* CV Crowd Analytics (LIVE only) */}
+          {liveEvent && <AdminCrowdVisionPanel analytics={visionAnalytics} />}
+
+          {/* Compliance Panel (LIVE only) */}
+          {liveEvent && (
+            <AdminCompliancePanel metrics={complianceMetrics} violations={violations} onResolve={resolveViolation} />
+          )}
+
+          {/* Stadium Digital Twin Heatmap */}
+          {liveEvent && allVenueEntities.length > 0 && (
+            <StadiumHeatmap entities={allVenueEntities} currentAttendance={liveEvent.current_attendance} capacity={stadium.capacity} />
+          )}
+
             <div className="glass rounded-xl p-4 text-center">
               <p className="text-sm text-muted-foreground">No live or upcoming events. Historical data is read-only.</p>
             </div>
