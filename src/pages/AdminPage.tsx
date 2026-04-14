@@ -4,6 +4,8 @@ import { useStadiums, useStadiumDetail } from '@/hooks/useStadiums';
 import { useECIRS } from '@/hooks/useECIRS';
 import { useEvacuationEngine } from '@/hooks/useEvacuationEngine';
 import { useIoTSensorFusion } from '@/hooks/useIoTSensorFusion';
+import { useCrowdVision } from '@/hooks/useCrowdVision';
+import { useComplianceAudit } from '@/hooks/useComplianceAudit';
 import { generateVenueEntities } from '@/data/venueGenerator';
 import { CrowdDensity } from '@/types/stadium';
 import { AdminEntityGrid } from '@/components/AdminEntityGrid';
@@ -12,6 +14,9 @@ import { AdminSurgePrediction } from '@/components/AdminSurgePrediction';
 import { AdminTrendChart } from '@/components/AdminTrendChart';
 import { AttendanceTrendChart } from '@/components/AttendanceTrendChart';
 import { AdminBroadcastPanel } from '@/components/AdminBroadcastPanel';
+import { AdminCompliancePanel } from '@/components/AdminCompliancePanel';
+import { AdminCrowdVisionPanel } from '@/components/AdminCrowdVisionPanel';
+import { StadiumHeatmap } from '@/components/StadiumHeatmap';
 import { useSmartAlerts } from '@/hooks/useSmartAlerts';
 import { 
   Shield, AlertTriangle, Activity, LogOut, MapPin, Calendar, Siren, CheckCircle, 
