@@ -4,6 +4,8 @@ import { useStadiums, useStadiumDetail } from '@/hooks/useStadiums';
 import { useECIRS } from '@/hooks/useECIRS';
 import { useEvacuationEngine } from '@/hooks/useEvacuationEngine';
 import { useIoTSensorFusion } from '@/hooks/useIoTSensorFusion';
+import { useCrowdVision } from '@/hooks/useCrowdVision';
+import { useComplianceAudit } from '@/hooks/useComplianceAudit';
 import { generateVenueEntities } from '@/data/venueGenerator';
 import { CrowdDensity } from '@/types/stadium';
 import { AdminEntityGrid } from '@/components/AdminEntityGrid';
@@ -12,6 +14,9 @@ import { AdminSurgePrediction } from '@/components/AdminSurgePrediction';
 import { AdminTrendChart } from '@/components/AdminTrendChart';
 import { AttendanceTrendChart } from '@/components/AttendanceTrendChart';
 import { AdminBroadcastPanel } from '@/components/AdminBroadcastPanel';
+import { AdminCompliancePanel } from '@/components/AdminCompliancePanel';
+import { AdminCrowdVisionPanel } from '@/components/AdminCrowdVisionPanel';
+import { StadiumHeatmap } from '@/components/StadiumHeatmap';
 import { useSmartAlerts } from '@/hooks/useSmartAlerts';
 import { 
   Shield, AlertTriangle, Activity, LogOut, MapPin, Calendar, Siren, CheckCircle, 
@@ -83,6 +88,16 @@ export const AdminPage: React.FC = () => {
 
   // IoT Sensor Fusion
   const { fusedDensities, sensorHealth, simulateIoTData } = useIoTSensorFusion(selectedStadiumId || undefined);
+
+  // CV Crowd Analytics
+  const { analytics: visionAnalytics } = useCrowdVision(allVenueEntities, !!liveEvent);
+
+  // Compliance Audit
+  const { violations, metrics: complianceMetrics, resolveViolation } = useComplianceAudit(
+    liveEvent?.id,
+    liveEvent?.current_attendance,
+    stadium?.capacity,
+  );
 
   // Gate recommendation
   const gateRecommendation = getOptimalGateRecommendation();
@@ -588,6 +603,19 @@ export const AdminPage: React.FC = () => {
                 ))}
               </div>
             </div>
+          )}
+
+          {/* CV Crowd Analytics (LIVE only) */}
+          {liveEvent && <AdminCrowdVisionPanel analytics={visionAnalytics} />}
+
+          {/* Compliance Panel (LIVE only) */}
+          {liveEvent && (
+            <AdminCompliancePanel metrics={complianceMetrics} violations={violations} onResolve={resolveViolation} />
+          )}
+
+          {/* Stadium Digital Twin Heatmap */}
+          {liveEvent && allVenueEntities.length > 0 && (
+            <StadiumHeatmap entities={allVenueEntities} currentAttendance={liveEvent.current_attendance} capacity={stadium.capacity} />
           )}
 
           {isPast && (

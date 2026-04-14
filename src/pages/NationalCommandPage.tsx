@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useNationalOverview } from '@/hooks/useNationalOverview';
+import { NationalRiskChart } from '@/components/NationalRiskChart';
 import L from 'leaflet';
 import { 
   Globe, AlertTriangle, Users, Clock, TrendingUp, Loader2, Siren, 
@@ -178,6 +179,9 @@ export const NationalCommandPage: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Inter-Stadium Risk Chart */}
+      <NationalRiskChart statuses={overview.stadiumStatuses} />
 
       {/* Inter-Stadium Comparison */}
       <div className="glass rounded-xl p-4">
